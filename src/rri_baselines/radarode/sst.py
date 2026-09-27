@@ -1,9 +1,11 @@
-"""radarODE-MTL の入力(SST 画像)を, 原著の MMECG_to_SST.m と同じ順序で試行全体について作る.
+"""radarODE-MTL の入力(SST 画像)を作る. 試行全体に 1 回だけ変換をかけ, 学習・評価で 4 s(120 フレーム)を切り出す.
 
-MMECG_to_SST.m(radarODE-MTL リポジトリ): 点ごとに試行全体へ wsst(10 voices/octave) → 振幅の高周波側の半分(71 行)
-→ 時間を 200 → 30 Hz に resample → 点ごとに試行全体で min-max 正規化 → 学習時に 4 s(120 フレーム)を切り出す.
-MATLAB の wsst は ssqueezepy の ssq_cwt(morlet, nv=10, 対数の尺度)で代用する(同一ではない. README に明記).
-周波数の行は低い順に並べる(著者の配布データ data_RFcardi の SST と突き合わせて, 高周波側の半分を昇順に並べた形が最も近かった).
+原著の MMECG_to_SST.m は「試行全体に wsst(10 voices/octave) → 振幅の行の後半(71 行) → 30 Hz → 点ごとに試行全体で min-max」.
+MATLAB が手元に無いので wsst は ssqueezepy の ssq_cwt(morlet)で代用する. このとき行の並び(昇順か降順か)が分からず,
+「後半」が 0.85〜100 Hz か低い側かが決まらない. 0.85〜100 Hz・試行全体の正規化で学習すると val の PPI 誤差が 115 ms で,
+定数の予測(約 90 ms)より悪かった(2026-09-28). そこで, 別セッションの再現(data_prepared_cft, val 約 9 ms)と同じ
+「0.2〜7.7 Hz の帯域(窓単位の変換の後半の行, 高い方から並べる)を 71 行に補間・窓ごと点ごとに min-max」に合わせる(相手に有利な側).
+窓ごとの正規化は data.py で行う. ここでは試行ごとに最大値で割った振幅を float16 で保存する.
 
   .venv/bin/python -m rri_baselines.radarode.sst [並列数]     → cache/radarode_sst/trial<id>.npy (50, 71, T30) float16
 """
@@ -21,19 +23,23 @@ CACHE = Path(os.environ.get("RRI_SST_CACHE", REPO / "cache/radarode_sst"))
 N_ROWS, F_OUT = 71, 30
 
 
+F_LO, F_HI = 0.2, 7.72          # data_prepared_cft の帯域(800 点の窓の ssq_cwt の後半の行)
+
+
 def trial_sst(rcg: np.ndarray) -> np.ndarray:
     import ssqueezepy as ssq
     from scipy.signal import resample_poly
     out = []
     for c in range(rcg.shape[1]):
         tx, _, freqs, _ = ssq.ssq_cwt(rcg[:, c].astype(np.float64), wavelet="morlet", fs=200, nv=10, scales="log")
-        order = np.argsort(np.asarray(freqs))[-N_ROWS:]              # 高い方から 71 行を, 低い順に
-        mag = np.abs(np.asarray(tx))[order]
-        out.append(resample_poly(mag, 3, 20, axis=1))                # 200 → 30 Hz(MATLAB の resample に相当)
+        freqs = np.asarray(freqs)
+        rows = np.flatnonzero((freqs >= F_LO) & (freqs <= F_HI))
+        rows = rows[np.argsort(freqs[rows])[::-1]]                     # 高い方から(data_prepared_cft と同じ並び)
+        mag = resample_poly(np.abs(np.asarray(tx))[rows], 3, 20, axis=1)          # 200 → 30 Hz
+        interp = np.stack([np.interp(np.linspace(0, 1, N_ROWS), np.linspace(0, 1, len(rows)), e) for e in np.eye(len(rows))], 1)
+        out.append(interp @ mag)                                        # 行方向の線形補間(71 行)
     sst = np.stack(out)
-    lo = sst.min(axis=(1, 2), keepdims=True)
-    hi = sst.max(axis=(1, 2), keepdims=True)
-    return ((sst - lo) / (hi - lo + 1e-12)).astype(np.float16)
+    return (sst / (sst.max(axis=(1, 2), keepdims=True) + 1e-12)).astype(np.float16)
 
 
 def compute(trial_id: int) -> str:

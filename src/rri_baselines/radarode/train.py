@@ -80,6 +80,11 @@ def main() -> None:
         print(f"[skip] {run_dir.name}", flush=True)
         return
     run_dir.mkdir(parents=True, exist_ok=True)
+    try:
+        (run_dir / "claim").mkdir()              # 同じ分割を 2 つの作業者が回さないための札(mkdir は排他的)
+    except FileExistsError:
+        print(f"[skip] {run_dir.name}: 他の作業者が学習中", flush=True)
+        return
     loader_gen = torch.Generator()
     loader_gen.manual_seed(42)
     train_set = CenterBeatWindows(trials_of(fold.train), TRAIN_STRIDE)

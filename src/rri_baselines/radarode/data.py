@@ -6,7 +6,7 @@
   ECG_shape: その拍の ECG を 200 点に線形補間(公開実装の down_sample)
   PPI      : その拍の ECG を長さ 260 まで −10 で埋めたもの(損失は長さ L をクラス L−1 と読む)
   Anchor   : 窓の中の R 波の位置に 1 を立てた 800 点(公開実装の spike 形式)
-SST は試行全体の SST(sst.py)を 30 Hz で切り出す. 窓の開始 s[200 Hz 標本] はフレーム s·30/200.
+SST は試行全体の SST(sst.py)を 30 Hz で切り出し, 窓ごと・点ごとに min-max で [0, 1] にする. 窓の開始 s[200 Hz 標本] はフレーム s·30/200.
 """
 import numpy as np
 import torch
@@ -45,7 +45,9 @@ class CenterBeatWindows(Dataset):
         t, s = self.items[i]
         sst, ecg, peaks = self.trials[t]
         f0 = s * 30 // FS
-        x = torch.from_numpy(np.asarray(sst[:, :, f0:f0 + SST_FRAMES], dtype=np.float32))
+        x = np.asarray(sst[:, :, f0:f0 + SST_FRAMES], dtype=np.float32)
+        lo, hi = x.min(axis=(1, 2), keepdims=True), x.max(axis=(1, 2), keepdims=True)
+        x = torch.from_numpy((x - lo) / np.where(hi - lo < 1e-12, 1.0, hi - lo))        # 窓ごと・点ごとに [0, 1](data_prepared_cft と同じ)
         k = int(np.searchsorted(peaks, s + WINDOW_LEN / 2.0))
         piece = ecg[peaks[k - 1]:peaks[k]] if 0 < k < len(peaks) else ecg[s:s + 1]
         ppi = np.full(PPI_LEN, -10.0, dtype=np.float32)
