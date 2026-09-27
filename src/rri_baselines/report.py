@@ -17,6 +17,12 @@ MMWAVE_RUNS = Path("/home/shunya/research/mmwave-rri/runs")
 METHODS = {"wu2019": ("Wu・Sakamoto 2019", "trial{t}_pred_ms"),
            "mibinet": ("MIBINET 2023", "trial{t}_pred_ms"),
            "radarode_ew": ("radarODE-MTL(等重み)", "trial{t}_pred_ms")}
+# 原論文の報告値. データ・分割・目標量・指標がそれぞれ違うので, 上の表と同じ列には入れない(Fable の助言どおり併記だけ)
+PAPER = [("EQ-Radio 2016", "IBI 誤差の平均 3.2 ms(p.2・p.8)", "自前データ. 生のレーダから位相を取る前段込み. 拍ごとの IBI"),
+         ("Wu・Sakamoto 2019", "RMSE 平均 20.6 ms, 絶対誤差 15.6 ± 13.5 ms", "自前 7 名, 被験者ごとの学習. 入力は呼吸を含む変位"),
+         ("MIBINET 2023", "RMSE 20.69 ms(Table 3・4, Radar-HS)", "推論時に心電図の R 波で窓を切り, 7 窓平均と平滑化の後. 連結 RMSE"),
+         ("radarODE-MTL(等重み)", "PPI 誤差 8.0 ms(Table I, p.8)", "MMECG 11 分割(被験者単位), 4 s・ストライド 1 s の窓, 200 エポック, 5 回平均. "
+                                                                       "単一タスク 9.6 ms, EGA(T = 1.0)8.5 ms")]
 
 
 def collect(run_root: Path, key: str) -> dict | None:
@@ -56,6 +62,8 @@ def main() -> None:
         lines.append(f"| {label} | {r['mae_ms']:.2f} | " + " | ".join(f"{sm[s]:.1f}" for s in subjects) + " |")
     missing = [label for label, p in rows.items() if p is None]
     text = "\n".join(lines) + ("\n\n未完了: " + "・".join(missing) if missing else "") + "\n"
+    text += "\n原論文の報告値(条件が違うので上の表とは比べない)\n\n| 手法 | 報告値 | 条件 |\n|---|---|---|\n"
+    text += "".join(f"| {m} | {v} | {c} |\n" for m, v, c in PAPER)
     (REPO / "results/summary.md").write_text(text, encoding="utf-8")
     print(text)
 
