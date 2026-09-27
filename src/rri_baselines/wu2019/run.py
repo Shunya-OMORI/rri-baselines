@@ -102,7 +102,8 @@ def window_rr_ms(w: np.ndarray, n: int, fallback_ms: float, use_s: bool = True,
 
 
 # (S 波も使うか, 最小間隔[秒], 平滑化の幅[標本]). 論文どおりは (True, 0.3, 1) に最も近い
-DECODE_GRID = [(u, d, sm) for u in (True, False) for d in (0.25, 0.3, 0.35, 0.4, 0.45, 0.5, 0.6) for sm in (1, 11, 21)]
+DECODE_GRID = [(u, d, sm) for u in (True, False) for d in (0.25, 0.3, 0.35, 0.4, 0.45, 0.5, 0.6, 0.7, 0.8)
+               for sm in (1, 11, 21, 41)]
 
 
 def fold_predictions(model: WuCNN, trial_ids: list[int], preps: dict, fallback_ms: float, use_s: bool = True) -> dict:
@@ -191,6 +192,25 @@ def train_fold(index: int) -> None:
                                                   "decode_val_mae_ms": {str(c): v for c, v in val_mae.items()}}, indent=1))
 
 
+def redecode() -> None:
+    """保存した val・test の出力系列から, 極値の条件を DECODE_GRID で選び直す(学習し直さない)."""
+    for fold in loso_folds():
+        run = RUNS / f"fold{fold.index:02d}_test{fold.test[0]}"
+        z, m = np.load(run / "series.npz"), json.loads((run / "metrics.json").read_text())
+        n = {t: len(load_trial(t)["rcg_z"]) for t in trials_of(fold.val) + trials_of(fold.test)}
+        fb = m["fallback_ms"]
+        val_mae = {c: score({t: window_rr_ms(z[f"trial{t}"], n[t], fb, *c) for t in trials_of(fold.val)})["mae_ms"]
+                   for c in DECODE_GRID}
+        chosen = min(val_mae, key=val_mae.get)
+        old = np.load(run / "predictions.npz")
+        np.savez(run / "predictions.npz",
+                 **{f"trial{t}_pred_ms": window_rr_ms(z[f"trial{t}"], n[t], fb, *chosen) for t in trials_of(fold.test)},
+                 **{k: old[k] for k in old.files if k.endswith("_paper_ms")})
+        m["decode_chosen"], m["decode_val_mae_ms"] = chosen, {str(c): v for c, v in val_mae.items()}
+        (run / "metrics.json").write_text(json.dumps(m, indent=1))
+        print(run.name, chosen, round(val_mae[chosen], 1), flush=True)
+
+
 def evaluate() -> None:
     preds, preds_r = {}, {}
     for fold in loso_folds():
@@ -208,5 +228,7 @@ if __name__ == "__main__":
     if sys.argv[1] == "train":
         for i in map(int, sys.argv[2:]):
             train_fold(i)
+    elif sys.argv[1] == "redecode":
+        redecode()
     else:
         evaluate()
