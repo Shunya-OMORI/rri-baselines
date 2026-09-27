@@ -1,0 +1,32 @@
+[project]
+name = "rri-baselines"
+version = "0.1.0"
+description = "MMECG 公開データ上で, 先行手法を提案手法(mmwave-rri)と同じ条件で再現・比較する"
+requires-python = ">=3.10,<3.13"
+dependencies = [
+    "numpy>=1.24",
+    "scipy>=1.10",
+    "numba>=0.59",
+    "torch==2.5.1",
+    "ssqueezepy==0.6.6",
+]
+
+[project.optional-dependencies]
+dev = ["pytest>=8.0"]
+
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+include = ["rri_baselines*"]
+
+# 手元と研究室サーバ s7 で torch をそろえる(mmwave-rri と同じ)
+[tool.uv.sources]
+torch = { index = "pytorch-cu121" }
+
+[[tool.uv.index]]
+name = "pytorch-cu121"
+url = "https://download.pytorch.org/whl/cu121"
+explicit = true

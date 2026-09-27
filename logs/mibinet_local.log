@@ -1,0 +1,2 @@
+[fold02_test5] epoch 0: lr 7.0e-03 loss 0.04087 val 81.19 ms (137 s)
+[fold02_test5] epoch 1: lr 6.9e-03 loss 0.00318 val 60.77 ms (133 s)
