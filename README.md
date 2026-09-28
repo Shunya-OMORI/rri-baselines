@@ -26,6 +26,29 @@ MMECG 公開データ上で, ミリ波レーダから RRI を推定する先行�
 | MIBINET(Murshed ら, Array 2023) | CNN が拍の間隔を直接回帰する | `mibinet/` | 網・損失・学習率は論文どおり(論文の形で 1,093,423 パラメータを再現). 50 点を入力チャネルにする. 200 エポック. 論文は推論時に心電図の R 波で窓を切るが, ここでは 4 s 固定窓 |
 | radarODE-MTL(Zhang ら, IEEE TIM 2025), 等重み | ECG の形・R 波の位置・心周期長の 3 タスク. 心周期長のヘッドが PPI を出す | `radarode/` | モデル・損失・学習器は radarODE-MTL リポジトリの `repro/` をそのまま使う. SST は原著の MMECG_to_SST.m の順序で, wsst を ssqueezepy で代用. 20 エポック |
 
+## 結果(2026-09-28, `results/summary.md`)
+
+| 手法 | 参加者平均 MAE [ms] | 原論文の報告値(条件が違う) |
+|---|---|---|
+| 提案手法(公開実装 91131 相当) | **7.02** | — |
+| radarODE-MTL(等重み) | 24.18 | PPI 誤差 8.0 ms(MMECG・4 s 窓・ストライド 1 s・200 エポック・5 回平均) |
+| EQ-Radio(学習なし) | 45.63 | IBI 誤差 3.2 ms(自前データ) |
+| MIBINET | 52.16(中央値 3 で 49.99) | RMSE 20.69 ms(推論時に R 波で窓を切る) |
+| Wu・Sakamoto | 88.49 | RMSE 20.6 ms(自前 7 名, 被験者ごとの学習) |
+| 定数(学習側の平均 RR) | 100.97 | — |
+
+- 提案手法は 11 名全員で最良(参加者 2 だけは radarODE-MTL と 6.3 対 6.4 でほぼ同じ).
+- 試行の状態ごと(`results/by_status.md`): radarODE-MTL は運動後(PE, 正解 RR 平均 713 ms)で 53.1 ms と崩れ, 窓の 12.7 % が
+  正解の 1.2〜1.6 倍(倍周期 1.6〜2.4 倍は 2.2 %). 短い RR を学習側の分布へ寄せて長めに出す. 提案手法は PE で 11.1 ms.
+- radarODE-MTL は論文の 200 エポックを 20 に縮めた(計算時間). val で選ばれたエポックは 3〜19 に散らばり, 最終エポックは 11 分割中 1 つだけ.
+- Wu・Sakamoto の復号(極値の最小間隔・平滑化・S 波の使用)は val で選ぶ. 格子を広げる前は 84.54 ms, 論文どおりの固定復号では 444.9 ms.
+
+## 再現できない部分
+
+- 生のレーダ信号から位相を取る前段(公開データは加速度 50 点だけ). EQ-Radio・Wu の報告値はこの段を含む.
+- radarODE-MTL の SST は MATLAB の wsst の代わりに ssqueezepy. 行の並びは分からず, 0.2〜7.7 Hz・窓ごとの正規化(val の誤差が小さい側)に置いた.
+- MIBINET の推論時の R 波による窓切りと 7 窓平均(心電図を使うので, 心電図なしの目標とは合わない).
+
 ## 使い方
 
 ```bash
@@ -37,4 +60,5 @@ uv sync --extra dev
 .venv/bin/python -m rri_baselines.radarode.sst 4
 RADARODE_ROOT=../radarODE-MTL ../radarODE-MTL/.venv/bin/python -m rri_baselines.radarode.train <分割> 20
 .venv/bin/python -m rri_baselines.report      # 比較表 results/summary.md
+.venv/bin/python -m rri_baselines.by_status   # 試行の状態ごとの誤差 results/by_status.md
 ```
