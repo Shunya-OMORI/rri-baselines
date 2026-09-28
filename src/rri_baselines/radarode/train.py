@@ -2,7 +2,7 @@
 
 モデル・損失・学習器は radarODE-MTL リポジトリの repro/(公開実装の再現レイヤ)をそのまま使い, データだけ data.py に替える.
 最適化は repro と同じ(SGD, lr 5e-3, momentum 0.937, weight decay 5e-4, バッチ 32, コサイン). エポック数は EPOCHS
-(論文は 200. 計算時間のため縮め, コサインの周期もそれに合わせる). エポックは val の参加者の PPI 誤差で選ぶ(repro と同じ).
+(論文は 200. 20 のときは runs/radarode_ew, それ以外は runs/radarode_ew<エポック数>. コサインの周期もエポック数に合わせる). エポックは val の参加者の PPI 誤差で選ぶ(repro と同じ).
 test は 0.2 s 間隔の全窓で PPI デコーダの最大のクラス k から RR = (k+1) 標本(repro の損失と整合する読み方)を出す.
 
   RADARODE_ROOT=<radarODE-MTL> python -m rri_baselines.radarode.train <分割> [エポック数]
@@ -24,6 +24,7 @@ from LibMTL.config import LibMTL_args, prepare_args  # noqa: E402
 from LibMTL.utils import set_device, set_random_seed  # noqa: E402
 from torch import nn  # noqa: E402
 
+from repro.fast_ops import apply as apply_fast_ops  # noqa: E402
 from repro.main import build_task_dict  # noqa: E402
 from repro.model import WIDTH_PRESETS, Backbone, ShapeDecoder, build_anchor_decoder, build_ppi_decoder  # noqa: E402
 from repro.trainer import ResumableTrainer  # noqa: E402
@@ -31,7 +32,6 @@ from rri_baselines.protocol import FS, loso_folds, trials_of  # noqa: E402
 from rri_baselines.radarode.data import CenterBeatWindows  # noqa: E402
 
 REPO = Path(__file__).resolve().parents[3]
-RUNS = REPO / "runs/radarode_ew"
 TRAIN_STRIDE = int(0.8 * FS)          # data_prepared_cft と同じ 0.8 s
 TASKS = ["ECG_shape", "PPI", "Anchor"]
 
@@ -73,24 +73,39 @@ def predict(trainer, trial_id: int, batch: int = 64) -> np.ndarray:
 
 def main() -> None:
     index = int(sys.argv[1])
-    epochs = int(sys.argv[2]) if len(sys.argv) > 2 else 30
+    epochs = int(sys.argv[2]) if len(sys.argv) > 2 else 20
     fold = loso_folds()[index]
-    run_dir = RUNS / f"fold{index:02d}_test{fold.test[0]}"
+    runs = REPO / "runs" / ("radarode_ew" if epochs == 20 else f"radarode_ew{epochs}")      # 20 エポックの既存の結果と分ける
+    run_dir = runs / f"fold{index:02d}_test{fold.test[0]}"
     if (run_dir / "predictions.npz").exists():
         print(f"[skip] {run_dir.name}", flush=True)
         return
     run_dir.mkdir(parents=True, exist_ok=True)
-    try:
-        (run_dir / "claim").mkdir()              # 同じ分割を 2 つの作業者が回さないための札(mkdir は排他的)
-    except FileExistsError:
-        print(f"[skip] {run_dir.name}: 他の作業者が学習中", flush=True)
+    # 同じ分割を 2 つの作業者が回さないための札(O_EXCL で排他的に作る). 札の PID が死んでいれば取り直して resume.pt から続ける
+    claim = run_dir / "claim.pid"
+    for _ in range(2):
+        try:
+            fd = os.open(claim, os.O_CREAT | os.O_EXCL | os.O_WRONLY)
+            os.write(fd, str(os.getpid()).encode())
+            os.close(fd)
+            break
+        except FileExistsError:
+            try:
+                os.kill(int(claim.read_text() or 0), 0)
+                print(f"[skip] {run_dir.name}: 他の作業者が学習中", flush=True)
+                return
+            except (ProcessLookupError, ValueError, FileNotFoundError):
+                claim.unlink(missing_ok=True)
+    else:
         return
+    if os.environ.get("RADARODE_FAST_OPS", "1") == "1":
+        apply_fast_ops()                         # 値を写すだけの処理の置き換え(数値は変わらない, repro/fast_ops.py)
     loader_gen = torch.Generator()
     loader_gen.manual_seed(42)
     train_set = CenterBeatWindows(trials_of(fold.train), TRAIN_STRIDE)
     val_set = CenterBeatWindows(trials_of(fold.val), TRAIN_STRIDE)
     mk = lambda ds, sh, g=None: torch.utils.data.DataLoader(  # noqa: E731
-        ds, batch_size=32, shuffle=sh, num_workers=6, pin_memory=True, drop_last=sh, generator=g)
+        ds, batch_size=32, shuffle=sh, num_workers=int(os.environ.get("RADARODE_WORKERS", "6")), pin_memory=True, drop_last=sh, generator=g)
     trainer = build_trainer(run_dir, epochs, loader_gen)
     n_params = sum(p.numel() for p in trainer.model.parameters())
     (run_dir / "config.json").write_text(json.dumps({"fold": fold._asdict(), "weighting": "EW", "width": "cft", "ode": "on",
@@ -105,6 +120,7 @@ def main() -> None:
     trainer.model.load_state_dict(torch.load(run_dir / "best_model.pt", map_location=trainer.device))
     preds = {t: predict(trainer, t) for t in trials_of(fold.test)}
     np.savez(run_dir / "predictions.npz", **{f"trial{t}_pred_ms": v for t, v in preds.items()})
+    claim.unlink(missing_ok=True)
 
 
 if __name__ == "__main__":
