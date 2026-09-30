@@ -9,6 +9,7 @@ dependencies = [
     "numba>=0.59",
     "torch==2.5.1",
     "ssqueezepy==0.6.6",
+    "neurokit2==0.2.13",
 ]
 
 [project.optional-dependencies]
