@@ -72,11 +72,21 @@ def predict(trainer, trial_id: int, batch: int = 64) -> np.ndarray:
 
 
 def main() -> None:
-    index = int(sys.argv[1])
     epochs = int(sys.argv[2]) if len(sys.argv) > 2 else 20
-    fold = loso_folds()[index]
-    runs = REPO / "runs" / ("radarode_ew" if epochs == 20 else f"radarode_ew{epochs}")      # 20 エポックの既存の結果と分ける
-    run_dir = runs / f"fold{index:02d}_test{fold.test[0]}"
+    if sys.argv[1] == "official":
+        # 公開実装 main.py の既定の分割: 試行 1〜88 のうち 75〜85(参加者 29・30)を test, 残りを学習. val はなく test でエポックを選ぶ.
+        # 参加者 29・30 の他の試行が学習側に残る(論文の報告値の条件の候補. LOSO との差を測るため)
+        test_trials = list(range(75, 86))
+        train_trials = [t for t in range(1, 89) if t not in test_trials]
+        val_trials, split = test_trials, {"split": "official", "train_trials": train_trials, "test_trials": test_trials}
+        run_dir = REPO / "runs" / f"radarode_ew_official{'' if epochs == 20 else epochs}"
+    else:
+        index = int(sys.argv[1])
+        fold = loso_folds()[index]
+        train_trials, val_trials, test_trials = trials_of(fold.train), trials_of(fold.val), trials_of(fold.test)
+        split = fold._asdict()
+        runs = REPO / "runs" / ("radarode_ew" if epochs == 20 else f"radarode_ew{epochs}")      # 20 エポックの既存の結果と分ける
+        run_dir = runs / f"fold{index:02d}_test{fold.test[0]}"
     if (run_dir / "predictions.npz").exists():
         print(f"[skip] {run_dir.name}", flush=True)
         return
@@ -102,13 +112,13 @@ def main() -> None:
         apply_fast_ops()                         # 値を写すだけの処理の置き換え(数値は変わらない, repro/fast_ops.py)
     loader_gen = torch.Generator()
     loader_gen.manual_seed(42)
-    train_set = CenterBeatWindows(trials_of(fold.train), TRAIN_STRIDE)
-    val_set = CenterBeatWindows(trials_of(fold.val), TRAIN_STRIDE)
+    train_set = CenterBeatWindows(train_trials, TRAIN_STRIDE)
+    val_set = CenterBeatWindows(val_trials, TRAIN_STRIDE)
     mk = lambda ds, sh, g=None: torch.utils.data.DataLoader(  # noqa: E731
         ds, batch_size=32, shuffle=sh, num_workers=int(os.environ.get("RADARODE_WORKERS", "6")), pin_memory=True, drop_last=sh, generator=g)
     trainer = build_trainer(run_dir, epochs, loader_gen)
     n_params = sum(p.numel() for p in trainer.model.parameters())
-    (run_dir / "config.json").write_text(json.dumps({"fold": fold._asdict(), "weighting": "EW", "width": "cft", "ode": "on",
+    (run_dir / "config.json").write_text(json.dumps({"fold": split, "weighting": "EW", "width": "cft", "ode": "on",
                                                      "epochs": epochs, "train_stride_samples": TRAIN_STRIDE,
                                                      "n_train": len(train_set), "n_val": len(val_set),
                                                      "n_params": n_params}, indent=1))
@@ -118,8 +128,11 @@ def main() -> None:
     trainer.train(mk(train_set, True, loader_gen), mk(val_set, False), mk(val_set, False), epochs)
     print(f"[{run_dir.name}] 学習 {time.time() - t0:.0f} s", flush=True)
     trainer.model.load_state_dict(torch.load(run_dir / "best_model.pt", map_location=trainer.device))
-    preds = {t: predict(trainer, t) for t in trials_of(fold.test)}
-    np.savez(run_dir / "predictions.npz", **{f"trial{t}_pred_ms": v for t, v in preds.items()})
+    preds = {f"trial{t}_pred_ms": predict(trainer, t) for t in test_trials}
+    last = torch.load(run_dir / "resume.pt", map_location=trainer.device, weights_only=False)["model"]
+    trainer.model.load_state_dict(last)                  # 最終エポックの模型でも出す(選び方の影響を見る)
+    preds.update({f"trial{t}_pred_last_ms": predict(trainer, t) for t in test_trials})
+    np.savez(run_dir / "predictions.npz", **preds)
     claim.unlink(missing_ok=True)
 
 
