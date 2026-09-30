@@ -16,7 +16,8 @@ REPO = Path(__file__).resolve().parents[2]
 MMWAVE_RUNS = Path("/home/shunya/research/mmwave-rri/runs")
 METHODS = {"wu2019": ("Wu・Sakamoto 2019", "trial{t}_pred_ms"),
            "mibinet": ("MIBINET 2023", "trial{t}_pred_ms"),
-           "radarode_ew": ("radarODE-MTL(等重み)", "trial{t}_pred_ms")}
+           "radarode_ew": ("radarODE-MTL(等重み, 20 エポック)", "trial{t}_pred_ms"),
+           "radarode_ew200": ("radarODE-MTL(等重み, 200 エポック)", "trial{t}_pred_ms")}
 # 原論文の報告値. データ・分割・目標量・指標がそれぞれ違うので, 上の表と同じ列には入れない(Fable の助言どおり併記だけ)
 PAPER = [("EQ-Radio 2016", "IBI 誤差の平均 3.2 ms(p.2・p.8)", "自前データ. 生のレーダから位相を取る前段込み. 拍ごとの IBI"),
          ("Wu・Sakamoto 2019", "RMSE 平均 20.6 ms, 絶対誤差 15.6 ± 13.5 ms", "自前 7 名, 被験者ごとの学習. 入力は呼吸を含む変位"),
