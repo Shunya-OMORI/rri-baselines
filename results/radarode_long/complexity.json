@@ -1,0 +1,42 @@
+{
+ "long_term": {
+  "params": 3168442,
+  "params_encoder": 2829666,
+  "params_decoder": 338435,
+  "params_tcn": 341,
+  "flops": 1067925600.0
+ },
+ "sceg_table1": {
+  "params": 29266322,
+  "params_backbone": 16959028,
+  "params_squeezer": 6292480,
+  "params_encoder": 3443328,
+  "params_decoder": 2571486,
+  "params_ode_estimator": 2400975,
+  "flops_per_beat": 12110186780.0,
+  "total_params": 32434764,
+  "flops_per_window": 72266312788.79364,
+  "flops_per_output_second_tiled": 18066578197.19841,
+  "flops_per_second_at_0.2s_stride": 361331563943.9682
+ },
+ "sceg_cft": {
+  "params": 9219538,
+  "params_backbone": 4241844,
+  "params_squeezer": 1573376,
+  "params_encoder": 861504,
+  "params_decoder": 2542814,
+  "params_ode_estimator": 2400975,
+  "flops_per_beat": 3290711772.0,
+  "total_params": 12387980,
+  "flops_per_window": 20414726365.824127,
+  "flops_per_output_second_tiled": 5103681591.456032,
+  "flops_per_second_at_0.2s_stride": 102073631829.12064
+ },
+ "mean_beats_per_window": 5.879214621724739,
+ "sst_flops_per_window_estimate": 406532169.3107462,
+ "paper_table8": {
+  "params_M": 6.04,
+  "flops_G": 1.45,
+  "note": "arXiv v2 Table VIII p.14, 'one forward propagation'"
+ }
+}

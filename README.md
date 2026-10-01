@@ -64,3 +64,27 @@ RADARODE_ROOT=../radarODE-MTL ../radarODE-MTL/.venv/bin/python -m rri_baselines.
 .venv/bin/python -m rri_baselines.report      # 比較表 results/summary.md
 .venv/bin/python -m rri_baselines.by_status   # 試行の状態ごとの誤差 results/by_status.md
 ```
+
+## radarODE(Zhang ら, IEEE TMC 2025)の長期再構成まで(`radarode_long/`, 2026-10-01, 学習前)
+
+本線は「長期モジュールが出す 4 s の ECG に NeuroKit2(`ecg_rri.window_rr`)」. 入力は評価する 4 s 窓の中だけ(SST も窓ごとにかける. 拍を中心にした 4 s の SST は窓の外を 0 で埋める).
+
+| 段 | 実装 | 原文 |
+|---|---|---|
+| SST | `sst.py`. MATLAB wsst の移植(`radarode/wsst.py` と float64 で差 0)を窓 800 点にかけ, [1, 25] Hz の 42 行(23.67〜1.06 Hz)を 71 行へ補間, 30 Hz(120 フレーム), 点ごとに [0, 1] | p.6・p.9 "[1, 25] Hz", Table I の 71 行 |
+| PPI(Algorithm 1) | `ppi.py`. 50 点のエネルギー波形 → 区間ごとに NeuroKit2 のピーク検出 → 差分の候補に KDE(h = n^(-1/5)) | p.5〜6, 式 17〜18 |
+| SCEG | radarODE-MTL の `repro/` の Backbone + ShapeDecoder(ODE あり). 段幅は Table I の 128/256/512/1024 | Fig. 5, Table I・II |
+| 形態参照 | `data.py`. SCEG の断片を KDE の PPI に伸縮し, エネルギー波形の位相で置いて連結 | p.8 |
+| 長期 | `model.py` の LongTerm. Table III の encoder・decoder + 膨張畳み込み 9 段 | Table III, Fig. 7 |
+
+- KDE の PPI を窓中央の RR とみなした参考値(学習なし, 全 11 名): **51.45 ms**(設定を test 以外の 10 名で選ぶと 11 分割すべて [1, 25] Hz・l_seg 4 s・NeuroKit2 の ECG 検出器・Scott の幅).
+  val の 1 名で選ぶと 70.98 ms(参加者 17 で 187 ms に崩れる). 候補の平均(論文 Fig. 9 の Mean)は 204 ms. `results/radarode_long/ppi_kde.json`
+- 計算量: `results/radarode_long/complexity.json`(FLOPpy). SCEG 29.3 M パラメータ・12.1 GFLOPs/拍, 長期 3.17 M・1.07 GFLOPs/窓, 窓 1 つ(平均 5.88 拍)で 72.3 GFLOPs.
+- 近道の確認(`shortcut_check.py`): 正解に近い参照で学習すると長期モジュールはレーダを使わず参照を写す(レーダを入れ替えても RMSE 0.0336 → 0.0340).
+- 使い方(s7 の CPU で KDE, 学習は GPU):
+
+```bash
+python -m rri_baselines.radarode_long.ppi compute --device cpu --workers 16 && python -m rri_baselines.radarode_long.ppi evaluate
+RADARODE_ROOT=../radarODE-MTL ../radarODE-MTL/.venv/bin/python -m rri_baselines.radarode_long.train all <分割>    # sceg → refs → long → eval
+RADARODE_ROOT=../radarODE-MTL ../radarODE-MTL/.venv/bin/python -m rri_baselines.radarode_long.flops
+```

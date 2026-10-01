@@ -1,0 +1,26 @@
+{
+ "fold": 0,
+ "reference": "template",
+ "steps": 1500,
+ "tcn": "plain",
+ "train": {
+  "as_is": 0.10339437382072954,
+  "swap_radar": 0.20017111153263828,
+  "swap_reference": 0.1035697494023072,
+  "swap_both": 0.20062188651737994,
+  "reference_itself": 0.22515517473220825,
+  "constant_mean": 0.16569596529006958
+ },
+ "val": {
+  "as_is": 0.2016930253966299,
+  "swap_radar": 0.1985106126678845,
+  "swap_reference": 0.20178910602572028,
+  "swap_both": 0.19861223091301342,
+  "reference_itself": 0.1914018839597702,
+  "constant_mean": 0.14243271946907043
+ },
+ "val_rr_mae_ms": {
+  "output": 109.49308755760369,
+  "reference_only": 40.52995391705069
+ }
+}
