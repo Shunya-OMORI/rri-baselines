@@ -1,12 +1,13 @@
 """MMECG 再実装の検算: 受容野が原文の 512 であること, キャッシュつき自己回帰が素朴な再計算と一致すること."""
+import pytest
 import torch
 
 from rri_baselines.mmecg.model import COND, RECEPTIVE, CachedGenerator, TCNDecoder, class_value, generate, generate_naive
 
 
-def _decoder(seed: int = 0) -> TCNDecoder:
+def _decoder(seed: int = 0, cond_all: bool = False) -> TCNDecoder:
     torch.manual_seed(seed)
-    dec = TCNDecoder(channels=16).double().eval()
+    dec = TCNDecoder(channels=16, cond_all=cond_all).double().eval()
     with torch.no_grad():                       # 重みを大きくして番号がばらつくようにする(全部同じ番号だと照合にならない)
         for p in dec.parameters():
             p.mul_(3.0)
@@ -17,8 +18,9 @@ def test_receptive_field_is_512():
     assert RECEPTIVE == 512
 
 
-def test_cached_step_matches_teacher_forcing():
-    dec = _decoder()
+@pytest.mark.parametrize("cond_all", [False, True])
+def test_cached_step_matches_teacher_forcing(cond_all):
+    dec = _decoder(cond_all=cond_all)
     b, T = 2, 600
     x_prev = torch.rand(b, T, dtype=torch.float64) * 2 - 1
     h = torch.randn(b, COND, T, dtype=torch.float64)
@@ -28,8 +30,9 @@ def test_cached_step_matches_teacher_forcing():
     assert (full - stepped).abs().max() < 1e-9
 
 
-def test_generate_matches_naive():
-    dec = _decoder(1)
+@pytest.mark.parametrize("cond_all", [False, True])
+def test_generate_matches_naive(cond_all):
+    dec = _decoder(1, cond_all)
     h = torch.randn(2, COND, 120, dtype=torch.float64)
     for context in (None, class_value(torch.randint(0, 256, (2, 30))).double()):
         fast = generate(dec, h, context)

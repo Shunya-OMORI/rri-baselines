@@ -116,45 +116,55 @@ class Encoder(nn.Module):
 
 # ---- デコーダ(TCN)------------------------------------------------------------------------------------
 class CausalBlock(nn.Module):
-    """因果的な膨張畳み込み(核 2)1 本と残差(Bai らの TCN のブロックを 1 畳み込みにしたもの)."""
+    """因果的な膨張畳み込み(核 2)1 本と残差(Bai らの TCN のブロックを 1 畳み込みにしたもの).
+    cond > 0 なら, 条件 h_t を 1×1 の射影で各段の畳み込みの出力に足す(WaveNet の local conditioning)."""
 
-    def __init__(self, cin: int, cout: int, dilation: int) -> None:
+    def __init__(self, cin: int, cout: int, dilation: int, cond: int = 0) -> None:
         super().__init__()
         self.d = dilation
         self.conv = nn.Conv1d(cin, cout, TCN_KERNEL, dilation=dilation)
         self.res = nn.Conv1d(cin, cout, 1) if cin != cout else None
+        self.cond = nn.Conv1d(cond, cout, 1, bias=False) if cond else None
 
-    def forward(self, x: torch.Tensor) -> torch.Tensor:          # (b, cin, T) → (b, cout, T)
-        y = F.relu(self.conv(F.pad(x, (self.d, 0))))
+    def forward(self, x: torch.Tensor, h: torch.Tensor | None = None) -> torch.Tensor:   # (b, cin, T) → (b, cout, T)
+        y = self.conv(F.pad(x, (self.d, 0)))
+        if self.cond is not None:
+            y = y + self.cond(h)
+        y = F.relu(y)
         return F.relu(y + (x if self.res is None else self.res(x)))
 
-    def step(self, x: torch.Tensor, past: torch.Tensor) -> torch.Tensor:
-        """x (b, cin) は時刻 t の入力, past (b, cin) は t - d の入力. 出力 (b, cout)."""
+    def step(self, x: torch.Tensor, past: torch.Tensor, h_t: torch.Tensor | None = None) -> torch.Tensor:
+        """x (b, cin) は時刻 t の入力, past (b, cin) は t - d の入力, h_t (b, 4). 出力 (b, cout)."""
         w = self.conv.weight                                      # (cout, cin, 2): [:, :, 0] が t - d, [:, :, 1] が t
-        y = F.relu(past @ w[:, :, 0].T + x @ w[:, :, 1].T + self.conv.bias)
+        y = past @ w[:, :, 0].T + x @ w[:, :, 1].T + self.conv.bias
+        if self.cond is not None:
+            y = y + h_t @ self.cond.weight[:, :, 0].T
+        y = F.relu(y)
         return F.relu(y + (x if self.res is None else x @ self.res.weight[:, :, 0].T + self.res.bias))
 
 
 class TCNDecoder(nn.Module):
-    def __init__(self, channels: int = 128) -> None:
+    """cond_all=False: h_t は 1 段目の入力にだけつなぐ. True: 加えて全段に h_t を足す(WaveNet の local conditioning)."""
+
+    def __init__(self, channels: int = 128, cond_all: bool = False) -> None:
         super().__init__()
-        self.blocks = nn.ModuleList([CausalBlock(1 + COND if i == 0 else channels, channels, 2 ** i)
-                                     for i in range(TCN_LAYERS)])
+        self.blocks = nn.ModuleList([CausalBlock(1 + COND if i == 0 else channels, channels, 2 ** i,
+                                                 COND if cond_all else 0) for i in range(TCN_LAYERS)])
         self.head = nn.Conv1d(channels, N_CLASSES, 1)
 
     def forward(self, x_prev: torch.Tensor, h: torch.Tensor) -> torch.Tensor:
         """teacher forcing. x_prev (b, T) は 1 つ前の標本の圧伸値, h (b, 4, T) → logits (b, 256, T)."""
         z = torch.cat([x_prev[:, None], h], 1)
         for blk in self.blocks:
-            z = blk(z)
+            z = blk(z, h)
         return self.head(z)
 
 
 class MMECG(nn.Module):
-    def __init__(self, tcn_channels: int = 128) -> None:
+    def __init__(self, tcn_channels: int = 128, cond_all: bool = False) -> None:
         super().__init__()
         self.encoder = Encoder()
-        self.decoder = TCNDecoder(tcn_channels)
+        self.decoder = TCNDecoder(tcn_channels, cond_all)
 
     def forward(self, rcg: torch.Tensor, pos: torch.Tensor, x_prev: torch.Tensor) -> torch.Tensor:
         return self.decoder(x_prev, self.encoder(rcg, pos))
@@ -176,7 +186,7 @@ class CachedGenerator:
             k = self.t % blk.d
             past = buf[:, :, k].clone()
             buf[:, :, k] = z
-            z = blk.step(z, past)
+            z = blk.step(z, past, h_t)
         self.t += 1
         return z @ self.dec.head.weight[:, :, 0].T + self.dec.head.bias
 

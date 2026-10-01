@@ -12,6 +12,10 @@
   生成前の過去の ECG(pad: 学習時と同じゼロ埋め / median: 学習側の中央値を 512 標本), h のつなぎ方
   (switch640 / switch400 / avg), 出力の取り方(argmax / sample)
 - エポックは val の参加者の窓 1 s おきの RR 誤差(推論は pad・switch640・argmax)で選ぶ
+- --span noar: 過去の ECG を使わない形(2026-10-01 追加). 原文どおりの teacher forcing では TCN が正解の過去 512 標本
+  だけで次の標本を当てる近道を覚え, h を無視する(h を他の窓と入れ替えても損失が変わらない. 生成の val RR 誤差 436 ms).
+  noar は過去の入力をゼロにして全 640 標本で損失を取り, 推論は 1 回の順伝播で 800 標本を出す(1 エポック相当で val 12.5 ms)
+- MMECG_PATIENCE(既定 8): val が続けて改善しなければ打ち切るエポック数
 
   .venv/bin/python -m rri_baselines.mmecg.run train [--span 128|all] <分割...>
   .venv/bin/python -m rri_baselines.mmecg.run evaluate [--span 128|all]
@@ -37,6 +41,7 @@ from rri_baselines.protocol import WINDOW_LEN, eval_windows, load_trial, loso_fo
 REPO = Path(__file__).resolve().parents[3]
 DEV = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 EPOCHS = int(os.environ.get("MMECG_EPOCHS", 30))
+PATIENCE = int(os.environ.get("MMECG_PATIENCE", 8))
 BATCH, LR, TRAIN_STEP = 64, 1e-3, 30
 ENC_BATCH = int(os.environ.get("MMECG_ENC_BATCH", 64))      # 推論でエンコーダに一度に入れる窓の数
 GEN_BATCH = int(os.environ.get("MMECG_GEN_BATCH", 2048))    # 自己回帰で一度に進める窓の数
@@ -44,6 +49,7 @@ OFFSET_B = WINDOW_LEN - SEG                                 # 160: 後ろ側の�
 VAL_EVERY = 5                                               # val の窓を 1 s おき(5 窓に 1 つ)に間引く
 CONTEXTS, STITCHES, DECODES = ("pad", "median"), ("switch640", "switch400", "avg"), ("argmax", "sample")
 DEFAULT = {"context": "pad", "stitch": "switch640", "decode": "argmax"}
+NOAR_DEFAULT = {"context": "none", "stitch": "switch640", "decode": "argmax"}   # context none = 過去を使わない 1 回の順伝播
 
 
 def run_root(span: str) -> Path:
@@ -93,6 +99,8 @@ def train_items(data: dict, trial_ids: list[int]) -> np.ndarray:
 def tf_loss(model: MMECG, x, pos, cls, span: str) -> torch.Tensor:
     """teacher forcing の交差エントロピー. 位置 j の入力は 1 つ前の標本の値(先頭は 0 = ゼロ埋め)."""
     x_prev = torch.cat([torch.zeros_like(cls[:, :1], dtype=torch.float32), class_value(cls[:, :-1])], 1)
+    if span == "noar":
+        x_prev = torch.zeros_like(x_prev)
     logits = model(x, pos, x_prev)
     k = SEG - RECEPTIVE if span == "128" else SEG
     return F.cross_entropy(logits[:, :, -k:], cls[:, -k:])
@@ -131,6 +139,12 @@ def generate_windows(model: MMECG, h: torch.Tensor, context: str, decode: str, m
     out = []
     for i in range(0, len(h), GEN_BATCH):
         hb = h[i:i + GEN_BATCH].to(DEV)
+        if context == "none":                  # noar: 過去をゼロにした 1 回の順伝播
+            logits = model.decoder(torch.zeros(hb.shape[0], hb.shape[2], device=DEV), hb)
+            c = (torch.distributions.Categorical(logits=logits.transpose(1, 2)).sample() if decode == "sample"
+                 else logits.argmax(1))
+            out.append(mu_law_decode(c).cpu())
+            continue
         ctx = None if context == "pad" else torch.full((len(hb), RECEPTIVE), median_value, device=DEV)
         out.append(mu_law_decode(generate(model.decoder, hb, ctx, decode == "sample", g)).cpu())
     return torch.cat(out).numpy()
@@ -196,7 +210,8 @@ def train_fold(index: int, span: str) -> None:
             opt.step()
             total += float(loss) * len(perm[i:i + BATCH])
         t1 = time.time()
-        preds, rules = predict(model, data, val_ids, DEFAULT, fallback_ms, median_value, VAL_EVERY)
+        preds, rules = predict(model, data, val_ids, NOAR_DEFAULT if span == "noar" else DEFAULT, fallback_ms,
+                               median_value, VAL_EVERY)
         val = score_subsampled(preds, data, VAL_EVERY)
         history.append({"epoch": epoch, "train_ce": total / len(perm), "val_mae_ms": val,
                         "val_center_share": float(np.mean(rules == 0)), "train_sec": t1 - t0, "val_sec": time.time() - t1})
@@ -206,18 +221,21 @@ def train_fold(index: int, span: str) -> None:
             best = val
             torch.save(model.state_dict(), run / "best_model.pt")
         (run / "metrics.json").write_text(json.dumps({"history": history, "best_val_mae_ms": best}, indent=1))
+        if epoch - min(range(len(history)), key=lambda e: history[e]["val_mae_ms"]) >= PATIENCE:
+            print(f"[{run.name}] val が {PATIENCE} エポック改善しないので打ち切り", flush=True)
+            break
     model.load_state_dict(torch.load(run / "best_model.pt", map_location=DEV))
-    select_and_predict(model, data, val_ids, test_ids, fallback_ms, median_value, run)
+    select_and_predict(model, data, val_ids, test_ids, fallback_ms, median_value, run, span)
 
 
-def select_and_predict(model, data, val_ids, test_ids, fallback_ms, median_value, run: Path) -> None:
+def select_and_predict(model, data, val_ids, test_ids, fallback_ms, median_value, run: Path, span: str = "128") -> None:
     """推論の選択(過去の ECG・h のつなぎ方・出力の取り方)を val の窓 1 s おきで選び, test の全窓を予測する."""
     cond = {}
     for t in val_ids:
         starts, _ = eval_windows(data[t]["n"], data[t]["peaks"])
         cond[t] = window_conditions(model, data[t], starts[::VAL_EVERY])
     table = []
-    for c, s, d in itertools.product(CONTEXTS, STITCHES, DECODES):
+    for c, s, d in itertools.product(("none",) if span == "noar" else CONTEXTS, STITCHES, DECODES):
         setting = {"context": c, "stitch": s, "decode": d}
         preds, rules = predict(model, data, val_ids, setting, fallback_ms, median_value, VAL_EVERY, cond)
         table.append({**setting, "val_mae_ms": score_subsampled(preds, data, VAL_EVERY),
@@ -342,7 +360,7 @@ if __name__ == "__main__":
         i = args.index("--span")
         span = args[i + 1]
         del args[i:i + 2]
-    assert span in ("128", "all"), span
+    assert span in ("128", "all", "noar"), span
     if args[0] == "train":
         for i in map(int, args[1:]):
             train_fold(i, span)
