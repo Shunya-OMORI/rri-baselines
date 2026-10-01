@@ -10,7 +10,7 @@
 | 名前 | 出典 | 実装 | 設定(出典の既定) | 入出力の層 |
 |---|---|---|---|---|
 | tcn | Bai ら 2018, arXiv:1803.01271 | 公式 locuslab/TCN の tcn.py をそのまま(reference/tcn) | 25 ch × 8 段, 核 7, dropout 0.05(公式の pmnist の例), 受容野 3,061 標本 | 最後の時刻の特徴 → 点平均 → Linear(1) |
-| wavenet | van den Oord ら 2016, arXiv:1609.03499 | AI-Huang/WaveNet の WaveNetBlock をそのまま(reference/wavenet) | 32 ch, 核 3, 膨張 1〜256 の 9 段, 受容野 1,023 標本 | スキップの和 → ReLU → 1×1 → ReLU → 1×1(同リポジトリの順) → 時間平均 → 点平均 → Linear(1) |
+| wavenet | van den Oord ら 2016, arXiv:1609.03499 | 原論文 §2.3〜2.4・Fig. 4 の残差ブロックと上段を models.py に実装(AI-Huang/WaveNet はスキップ・残差が 1 チャネルで学習が動かなかった. reference/wavenet に保存) | 32 ch, 核 3, 膨張 1〜256 の 9 段, 受容野 1,023 標本 | スキップの和 → ReLU → 1×1 → ReLU → 1×1 → 時間平均 → 点平均 → Linear(1) |
 | transformer | Vaswani ら 2017. PyTorch 公式 nn.TransformerEncoder | パッチ埋め込み(Conv1d, 100 ms) + 学習する位置埋め込み + [CLS], Pre-LN | [CLS] の特徴 → 点平均 → Linear(1) |
 
 学習では窓ごとに 50 点から 16 点を無作為に選んで通し(計算量と拡張. 提案手法の点数と同じ), 評価では 50 点すべてを平均する.
@@ -28,7 +28,6 @@ _REF = Path(__file__).resolve().parents[3] / "reference"
 sys.path.insert(0, str(_REF / "tcn"))
 sys.path.insert(0, str(_REF / "wavenet"))
 from tcn import TemporalConvNet  # noqa: E402  公式実装をそのまま import
-from wavenet import WaveNetBlock  # noqa: E402  AI-Huang/WaveNet をそのまま import
 
 IN_CH = 50
 
@@ -59,22 +58,43 @@ class TCNRegressor(PointwiseRegressor):
         return self.tcn(x)[:, :, -1]
 
 
-class WaveNetRegressor(PointwiseRegressor):
-    """AI-Huang/WaveNet(reference/wavenet)の WaveNetBlock をそのまま使い, 上段は同リポジトリの WaveNet.forward の順
-    (スキップの和 → ReLU → 1×1 → ReLU → 1×1)の後, 平坦化 → 全結合の代わりに時間平均 → Linear にする(改訂 2 版)."""
+class WaveNetResidualBlock(nn.Module):
+    """van den Oord ら 2016 §2.3〜2.4 の残差ブロック: 膨張畳み込み → ゲート付き活性 tanh(W_f*x) ⊙ σ(W_g*x) → 1×1 で残差と
+    スキップ(どちらも C チャネル). AI-Huang/WaveNet の WaveNetBlock はスキップと残差が 1 チャネルで(conv2 の out_channels=1),
+    学習損失が初期値のまま動かなかった(2026-10-02, 20 エポックとも 91.7 ms)ので, 原論文の構成に置き換えた. 'same' 詰めは同リポジトリと同じ."""
 
-    def __init__(self, filters: int = 32, kernel_size: int = 3, n: int = 9) -> None:
+    def __init__(self, channels: int, kernel_size: int, dilation: int) -> None:
         super().__init__()
-        self.conv1 = nn.Conv1d(1, filters, 1)
-        self.wavenet_block = WaveNetBlock(filters, filters, kernel_size, n)
-        self.conv2 = nn.Conv1d(1, 1, 1)
-        self.conv3 = nn.Conv1d(1, 1, 1)
-        self.head = nn.Linear(1, 1)
+        pad = dilation * (kernel_size - 1) // 2
+        self.filter = nn.Conv1d(channels, channels, kernel_size, padding=pad, dilation=dilation)
+        self.gate = nn.Conv1d(channels, channels, kernel_size, padding=pad, dilation=dilation)
+        self.residual = nn.Conv1d(channels, channels, 1)
+        self.skip = nn.Conv1d(channels, channels, 1)
+
+    def forward(self, x: torch.Tensor) -> tuple[torch.Tensor, torch.Tensor]:
+        z = torch.tanh(self.filter(x)) * torch.sigmoid(self.gate(x))
+        return x + self.residual(z), self.skip(z)
+
+
+class WaveNetRegressor(PointwiseRegressor):
+    """WaveNet(van den Oord ら 2016)の残差ブロック × 9 段(膨張 1〜256, 受容野 1,023 標本)と, 原論文 Fig. 4 の上段
+    (スキップの和 → ReLU → 1×1 → ReLU → 1×1)の後に, softmax の代わりに時間平均 → Linear で RR 1 個にする."""
+
+    def __init__(self, channels: int = 32, kernel_size: int = 3, n: int = 9) -> None:
+        super().__init__()
+        self.conv_in = nn.Conv1d(1, channels, 1)
+        self.blocks = nn.ModuleList([WaveNetResidualBlock(channels, kernel_size, 2 ** i) for i in range(n)])
+        self.post1 = nn.Conv1d(channels, channels, 1)
+        self.post2 = nn.Conv1d(channels, channels, 1)
+        self.head = nn.Linear(channels, 1)
 
     def encode(self, x: torch.Tensor) -> torch.Tensor:
-        _, skips = self.wavenet_block(self.conv1(x))
-        y = F.relu(torch.stack(skips, dim=0).sum(dim=0))                     # (N, 1, 800)
-        return self.conv3(F.relu(self.conv2(y))).mean(dim=2)                 # (N, 1)
+        h, skips = self.conv_in(x), 0
+        for blk in self.blocks:
+            h, s = blk(h)
+            skips = skips + s
+        y = self.post2(F.relu(self.post1(F.relu(skips))))                    # (N, C, 800)
+        return y.mean(dim=2)
 
 
 class TransformerRegressor(PointwiseRegressor):
