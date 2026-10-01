@@ -69,7 +69,8 @@ def train_fold(name: str, index: int) -> None:
         return
     run.mkdir(parents=True, exist_ok=True)
     torch.manual_seed(42)
-    torch.backends.cudnn.deterministic, torch.backends.cudnn.benchmark = True, False
+    # cuDNN の決定的モードは膨張畳み込みの逆伝播が 60 倍遅い(1 バッチ 59 ms → 3.6 s)ので使わない. seed は固定するが, GPU の畳み込みの非決定性は残る
+    torch.backends.cudnn.benchmark = False
     rng = np.random.default_rng(42)
     train_ids, val_ids, test_ids = trials_of(fold.train), trials_of(fold.val), trials_of(fold.test)
     sig = {}
