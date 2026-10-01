@@ -10,9 +10,15 @@
   test     選んだ (重み, つなぎ方) で test の参加者の全評価窓(0.2 s おき)を予測 → predictions.npz
   cleanup  大きな中間物(書き出しの npy, 選ばなかった重み)を消す
 
+途中の結果(2026-10-02 ユーザ): DiT は 200 エポックのスケジュール(warmup 7750 段 → コサイン)のまま最後まで回し, 10 エポックごとに
+保存する. 学習を止めずに `select --upto 20` → `test --upto 20` を走らせると, 20 エポックまでの重みから val で選んだ test の
+予測が出る(select_upto020.json, predictions_upto020.npz. `evaluate --upto 20` で採点). 20 エポック目は warmup(≒ 42 エポック)の
+途中なので, 「200 エポックの学習の途中の重み」であって「20 エポックで学習し切った模型」ではない. 最終(--upto なし)は全保存から選ぶ.
+
   .venv/bin/python -m rri_baselines.mmjepa_official.run all <分割> [--device cuda:0]
   .venv/bin/python -m rri_baselines.mmjepa_official.run <export|pretrain|train|select|test|cleanup> <分割>
-  .venv/bin/python -m rri_baselines.mmjepa_official.run evaluate          # 11 分割を採点 → results/mmjepa_official/summary.json
+  .venv/bin/python -m rri_baselines.mmjepa_official.run evaluate [--upto E] # 11 分割を採点 → results/mmjepa_official/summary[_uptoE].json
+  .venv/bin/python -m rri_baselines.mmjepa_official.run <select|test> <分割> --upto 20   # 学習中に途中の結果を出す
   .venv/bin/python -m rri_baselines.mmjepa_official.run smoke <分割>      # 極小設定で CPU の通し確認
   .venv/bin/python -m rri_baselines.mmjepa_official.run queue             # queue/held/230_mmjepa_off_f<i>.sh を書く
 
@@ -65,7 +71,7 @@ class Config:
     dit_epochs: int = 200         # 論文・公式とも記載なし(公式既定 1). 300 は事前学習の docstring の流用で根拠がなかった.
                                   # radarODE-MTL と同じ 200(2026-10-02 ユーザ). 公式の warmup 7750 段 ≈ 42 エポック(186 段/エポック)
     dit_batch: int = 128
-    ckpt_every: int = 50          # 公式の既定
+    ckpt_every: int = 10          # 公式の既定は 50. 途中のエポックで結果を出せるように細かくする(引数だけの変更, 2026-10-02)
     warmup_steps: int = 7750      # 公式の既定(= 155 段 × 50 エポック)
     log_every: int = 155          # 公式の既定
     val_stride: int = 5           # val の選択は評価窓 5 個おき(1 s おき. 書き直し版・mmecg と同じ)
@@ -168,8 +174,14 @@ def encoder_ckpt(cfg: Config, out: Path) -> Path:
     return dst
 
 
-def dit_ckpts(out: Path) -> list[Path]:
-    return sorted((out / "e2e").glob("*-e2e/checkpoints/epoch_*.pt"))
+def dit_ckpts(out: Path, upto: int | None = None) -> list[Path]:
+    """DiT の保存(epoch_XXX.pt). upto を与えるとそのエポックまで."""
+    cks = sorted((out / "e2e").glob("*-e2e/checkpoints/epoch_*.pt"))
+    return [c for c in cks if upto is None or int(c.stem.split("_")[1]) <= upto]
+
+
+def suffix(upto: int | None) -> str:
+    return "" if upto is None else f"_upto{upto:03d}"
 
 
 # ------------------------------------------------------------------ 段
@@ -289,9 +301,12 @@ def window_preds(gens: dict, truth: dict, how: str, fallback: float) -> dict:
     return preds
 
 
-def stage_select(cfg: Config, index: int, device: str) -> dict:
+def stage_select(cfg: Config, index: int, device: str, upto: int | None = None) -> dict:
     out = fold_dir(cfg, index)
-    f = out / "select.json"
+    f = out / f"select{suffix(upto)}.json"
+    cks = dit_ckpts(out, upto)
+    if upto is not None and not any(int(c.stem.split("_")[1]) == upto for c in cks):
+        raise FileNotFoundError(f"epoch_{upto:03d}.pt がまだ無い(学習が {upto} エポックに達していない)")
     if f.exists():
         return json.loads(f.read_text())
     fold = loso_folds()[index]
@@ -300,7 +315,7 @@ def stage_select(cfg: Config, index: int, device: str) -> dict:
     fallback = train_mean_rr(trials_of(fold.train))
     enc = encoder_ckpt(cfg, out)
     table, detail = {}, {}
-    for ck in dit_ckpts(out):
+    for ck in cks:
         gens = generate(cfg, out, f"val/{ck.stem}", rows, enc, ck, device)
         for how in STITCH:
             p = window_preds(gens, truth, how, fallback)
@@ -316,23 +331,23 @@ def stage_select(cfg: Config, index: int, device: str) -> dict:
     res = {"table": table, "best": best, "detail": detail, "val_subject": fold.val, "val_trials": val_trials,
            "val_stride": cfg.val_stride, "n_val_windows": int(sum(len(s) for s, _ in truth.values())),
            "generations_per_window": {h: len(o) for h, o in STITCH.items()}, "ddim_steps": 100,
-           "fallback_ms": fallback}
+           "fallback_ms": fallback, "upto_epoch": upto, "candidates": [c.stem for c in cks]}
     f.write_text(json.dumps(res, indent=1, ensure_ascii=False))
     return res
 
 
-def stage_test(cfg: Config, index: int, device: str) -> None:
+def stage_test(cfg: Config, index: int, device: str, upto: int | None = None) -> None:
     out = fold_dir(cfg, index)
-    if (out / "predictions.npz").exists():
+    if (out / f"predictions{suffix(upto)}.npz").exists():
         return
     fold = loso_folds()[index]
-    ck_name, how = json.loads((out / "select.json").read_text())["best"].split("/")
+    ck_name, how = json.loads((out / f"select{suffix(upto)}.json").read_text())["best"].split("/")
     ck = next(c for c in dit_ckpts(out) if c.stem == ck_name)
     test_trials = trials_of(fold.test)[:cfg.test_trials]
     rows, truth = infer_rows(cfg, test_trials, 1, STITCH[how], cfg.test_win_limit)
     gens = generate(cfg, out, f"test/{ck_name}_{how}", rows, encoder_ckpt(cfg, out), ck, device)
     p = window_preds(gens, truth, how, train_mean_rr(trials_of(fold.train)))
-    np.savez(out / "predictions.npz", **{f"pred_{t}": np.array([v for v, _ in p[t]]) for t in p},
+    np.savez(out / f"predictions{suffix(upto)}.npz", **{f"pred_{t}": np.array([v for v, _ in p[t]]) for t in p},
              **{f"rule_{t}": np.array([r for _, r in p[t]]) for t in p},
              **{f"true_{t}": truth[t][1] for t in p}, choice=f"{ck_name}/{how}",
              generations_per_window=len(STITCH[how]))
@@ -350,9 +365,9 @@ def stage_cleanup(cfg: Config, index: int) -> None:
         raise RuntimeError("test の予測がまだ無いので消さない")
     shutil.rmtree(data_dir(cfg, index), ignore_errors=True)
     shutil.rmtree(Path(cfg.cache) / out.name, ignore_errors=True)
-    keep = json.loads((out / "select.json").read_text())["best"].split("/")[0]
+    keep = {json.loads(f.read_text())["best"].split("/")[0] for f in out.glob("select*.json")}   # 最終と途中(--upto)の両方
     for c in dit_ckpts(out):
-        if c.stem != keep:
+        if c.stem not in keep:
             c.unlink()
     for c in (out / "pretrain/checkpoints").glob("*/checkpoint_epoch_*.pth"):
         if c.name != f"checkpoint_epoch_{cfg.pt_epochs}.pth":
@@ -389,18 +404,19 @@ def run_all(cfg: Config, index: int, device: str) -> None:
     print(f"[fold{index}] 時間 " + ", ".join(f"{k} {v / 60:.1f} 分" for k, v in times.items()), flush=True)
 
 
-def evaluate(cfg: Config) -> dict:
+def evaluate(cfg: Config, upto: int | None = None) -> dict:
     preds = {}
     for d in sorted(Path(cfg.runs).glob("fold*_test*")):
-        f = d / "predictions.npz"
+        f = d / f"predictions{suffix(upto)}.npz"
         if f.exists():
             with np.load(f) as z:
                 preds.update({int(k[5:]): z[k] for k in z.files if k.startswith("pred_")})
     res = score(preds)
     out = REPO / "results/mmjepa_official"
     out.mkdir(parents=True, exist_ok=True)
-    (out / "summary.json").write_text(json.dumps(res, indent=1, ensure_ascii=False))
-    print(f"mm-JEPA-ECG(公式実装): {res['mae_ms']:.2f} ms ({len(res['subject_mae_ms'])} 名)")
+    (out / f"summary{suffix(upto)}.json").write_text(json.dumps(res, indent=1, ensure_ascii=False))
+    print(f"mm-JEPA-ECG(公式実装{'' if upto is None else f', {upto} エポックまで'}): {res['mae_ms']:.2f} ms "
+          f"({len(res['subject_mae_ms'])} 名)")
     return res
 
 
@@ -451,17 +467,18 @@ if __name__ == "__main__":
                                     "smoke", "queue"])
     ap.add_argument("folds", nargs="*", type=int)
     ap.add_argument("--device", default=os.environ.get("MMJEPA_DEVICE", "cuda:0"))
+    ap.add_argument("--upto", type=int, default=None, help="select/test/evaluate: このエポックまでの保存だけを候補にする")
     a = ap.parse_args()
     if a.cmd == "smoke":
         for i in a.folds:
             run_all(SMOKE, i, "cpu")
     elif a.cmd == "evaluate":
-        evaluate(FULL)
+        evaluate(FULL, a.upto)
     elif a.cmd == "queue":
         write_queue(FULL)
     else:
         for i in a.folds:
             {"all": lambda: run_all(FULL, i, a.device), "export": lambda: stage_export(FULL, i),
              "pretrain": lambda: stage_pretrain(FULL, i, a.device), "train": lambda: stage_train(FULL, i, a.device),
-             "select": lambda: stage_select(FULL, i, a.device), "test": lambda: stage_test(FULL, i, a.device),
+             "select": lambda: stage_select(FULL, i, a.device, a.upto), "test": lambda: stage_test(FULL, i, a.device, a.upto),
              "cleanup": lambda: stage_cleanup(FULL, i)}[a.cmd]()
