@@ -17,7 +17,7 @@ MMWAVE_RUNS = Path("/home/shunya/research/mmwave-rri/runs")
 METHODS = {"wu2019": ("Wu・Sakamoto 2019", "trial{t}_pred_ms"),
            "mibinet": ("MIBINET 2023", "trial{t}_pred_ms"),
            "radarode_ew_wsst": ("radarODE-MTL(等重み, 20 エポック)", "trial{t}_pred_ms"),
-           "radarode_ew_wsst100": ("radarODE-MTL(等重み, 100 エポック)", "trial{t}_pred_ms"),
+           "radarode_ew_wsst200": ("radarODE-MTL(等重み, 200 エポック・コサイン周期 100)", "trial{t}_pred_ms"),
            # 09-28 の値. SST の帯域を取り違えていた(0.2〜7.7 Hz). 経緯の記録として残す
            "radarode_ew": ("(誤) radarODE-MTL, SST 0.2〜7.7 Hz, 20 エポック", "trial{t}_pred_ms"),
            "radarode_ew200": ("(誤) radarODE-MTL, SST 0.2〜7.7 Hz, 200 エポック", "trial{t}_pred_ms")}
