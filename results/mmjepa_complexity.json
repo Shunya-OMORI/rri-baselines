@@ -1,0 +1,28 @@
+{
+ "params": {
+  "encoder(推論で使う)": 502402,
+  "hrc_dit(推論で使う)": 20143888,
+  "inference_total": 20646290,
+  "predictor(事前学習だけ)": 197250,
+  "target_encoder_ema(事前学習だけ, エンコーダの写し)": 502402,
+  "dit_ema(学習だけ. 公式の推論は使わない)": 20143888,
+  "training_total": 41489830
+ },
+ "encoder_per_call": 1829228800,
+ "dit_step_official": 4137347648,
+ "dit_context_kv_once": 2949120000,
+ "dit_step_kv_cached": 1188227648,
+ "ddim100_measured_official": 413735284400,
+ "per_generation_512(encoder + DDIM 100)": 415564513200,
+ "per_window[single, 生成 1 回]": 415564513200,
+ "per_output_second[single](5 窓/s)": 2077822566000,
+ "per_window_kv_cached[single]": 123601113600,
+ "per_window[pair, 生成 2 回]": 831129026400,
+ "per_output_second[pair](5 窓/s)": 4155645132000,
+ "per_window_kv_cached[pair]": 247202227200,
+ "per_window[triple, 生成 3 回]": 1246693539600,
+ "per_output_second[triple](5 窓/s)": 6233467698000,
+ "per_window_kv_cached[triple]": 370803340800,
+ "continuous_ecg_per_second(512 標本の生成を重ねずに並べる)": 162329887968.75,
+ "check_pair_window_measured": 831129026400
+}

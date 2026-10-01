@@ -1,0 +1,18 @@
+{
+ "params": {
+  "total": 577824,
+  "encoder": 279456,
+  "decoder": 298368
+ },
+ "encoder_per_call": 1530334160,
+ "tcn_step_cached": 599810.0,
+ "tcn_step_naive_rf512": 305725440,
+ "tcn_teacher_forcing_640": 382156800,
+ "per_window_cached": 3540516320.0,
+ "per_window_naive": 247641020320,
+ "per_output_second_cached(5 窓/s)": 17702581600.0,
+ "per_output_second_naive(5 窓/s)": 1238205101600,
+ "continuous_ecg_per_second_cached(200 標本 + エンコーダ 200/128 回)": 2511109125.0,
+ "training_forward_per_sample(エンコーダ 1 回 + TCN 640 並列)": 1912490960,
+ "check_window_cached_measured": 3540516320
+}

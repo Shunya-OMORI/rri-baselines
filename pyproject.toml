@@ -14,6 +14,9 @@ dependencies = [
 
 [project.optional-dependencies]
 dev = ["pytest>=8.0"]
+flops = [
+    "floppy-tracker>=0.2.2",
+]
 
 [build-system]
 requires = ["setuptools>=68"]
