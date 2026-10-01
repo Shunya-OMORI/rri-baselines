@@ -24,7 +24,7 @@ MMECG 公開データ上で, ミリ波レーダから RRI を推定する先行�
 | EQ-Radio(Zhao ら, MobiCom 2016) | 学習なし. テンプレートと動的計画法で拍を区切る | `eqradio/` | 点は冒頭 30 s で拍の形が最もそろう点. 区間長の範囲・初期値・拍の時刻と R 波のずれは test 以外の 10 名の誤差で選ぶ(ずれの選択は正解を使う) |
 | Wu, Sakamoto ら(IEEE Access 2019) | 学習で三角波 2 本(R 波・S 波に頂点)を出し, 極値の間隔を取る | `wu2019/` | 網は論文の図 1 のまま(23,282 パラメータ). 入力は 6.48 s で 4 s 窓の外の実信号も見る. 極値の最小間隔・平滑化・S 波を使うかは val で選ぶ |
 | MIBINET(Murshed ら, Array 2023) | CNN が拍の間隔を直接回帰する | `mibinet/` | 網・損失・学習率は論文どおり(論文の形で 1,093,423 パラメータを再現). 50 点を入力チャネルにする. 200 エポック. 論文は推論時に心電図の R 波で窓を切るが, ここでは 4 s 固定窓 |
-| radarODE-MTL(Zhang ら, IEEE TIM 2025), 等重み | ECG の形・R 波の位置・心周期長の 3 タスク. 心周期長のヘッドが PPI を出す | `radarode/` | モデル・損失・学習器は radarODE-MTL リポジトリの `repro/` をそのまま使う. SST は原著の MMECG_to_SST.m の順序で, wsst を ssqueezepy で代用. 20 エポック |
+| radarODE-MTL(Zhang ら, IEEE TIM 2025), 等重み | ECG の形・R 波の位置・心周期長の 3 タスク. 心周期長のヘッドが PPI を出す | `radarode/` | モデル・損失・学習器は radarODE-MTL リポジトリの `repro/` をそのまま使う. SST は MATLAB の wsst を移した `radarode/wsst.py`(試行全体に変換 → 0.72〜100 Hz の 71 行 → 30 Hz → 試行全体の正規化 → 上下反転 → 窓ごとの正規化. 著者のデータ生成コードの順). 20 エポック |
 
 ## 結果(2026-09-28, `results/summary.md`)
 
@@ -48,7 +48,7 @@ MMECG 公開データ上で, ミリ波レーダから RRI を推定する先行�
 ## 再現できない部分
 
 - 生のレーダ信号から位相を取る前段(公開データは加速度 50 点だけ). EQ-Radio・Wu の報告値はこの段を含む.
-- radarODE-MTL の SST は MATLAB の wsst の代わりに ssqueezepy. 行の並びは分からず, 0.2〜7.7 Hz・窓ごとの正規化(val の誤差が小さい側)に置いた.
+- radarODE-MTL の SST は MATLAB の wsst そのものではなく移植(`radarode/wsst.py`). MATLAB の出力との数値の照合はしていない(MATLAB が手元に無い). 時間方向の間引きは resample の代わりに resample_poly.
 - MIBINET の推論時の R 波による窓切りと 7 窓平均(心電図を使うので, 心電図なしの目標とは合わない).
 
 ## 使い方
@@ -59,7 +59,7 @@ uv sync --extra dev
 .venv/bin/python -m rri_baselines.eqradio.window compute 8 && .venv/bin/python -m rri_baselines.eqradio.window evaluate
 .venv/bin/python -m rri_baselines.wu2019.run train 0 1 2 3 4 5 6 7 8 9 10 && .venv/bin/python -m rri_baselines.wu2019.run evaluate
 .venv/bin/python -m rri_baselines.mibinet.run train 0 1 2 3 4 5 6 7 8 9 10 && .venv/bin/python -m rri_baselines.mibinet.run evaluate
-.venv/bin/python -m rri_baselines.radarode.sst 4
+../radarODE-MTL/.venv/bin/python -m rri_baselines.radarode.wsst cuda   # SST のキャッシュ(約 7 GB)
 RADARODE_ROOT=../radarODE-MTL ../radarODE-MTL/.venv/bin/python -m rri_baselines.radarode.train <分割> 20
 .venv/bin/python -m rri_baselines.report      # 比較表 results/summary.md
 .venv/bin/python -m rri_baselines.by_status   # 試行の状態ごとの誤差 results/by_status.md

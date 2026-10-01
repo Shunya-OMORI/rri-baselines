@@ -29,9 +29,11 @@ from repro.main import build_task_dict  # noqa: E402
 from repro.model import WIDTH_PRESETS, Backbone, ShapeDecoder, build_anchor_decoder, build_ppi_decoder  # noqa: E402
 from repro.trainer import ResumableTrainer  # noqa: E402
 from rri_baselines.protocol import FS, loso_folds, trials_of  # noqa: E402
-from rri_baselines.radarode.data import CenterBeatWindows  # noqa: E402
+from rri_baselines.radarode.data import SST_VARIANT, TARGET, CenterBeatWindows  # noqa: E402
 
 REPO = Path(__file__).resolve().parents[3]
+# 結果の置き場の接尾辞. 既定(low・center)は 09-28 の結果と同じ場所
+VARIANT = ("" if SST_VARIANT == "low" else f"_{SST_VARIANT}") + ("" if TARGET == "center" else f"_{TARGET}")
 TRAIN_STRIDE = int(0.8 * FS)          # data_prepared_cft と同じ 0.8 s
 TASKS = ["ECG_shape", "PPI", "Anchor"]
 
@@ -79,13 +81,13 @@ def main() -> None:
         test_trials = list(range(75, 86))
         train_trials = [t for t in range(1, 89) if t not in test_trials]
         val_trials, split = test_trials, {"split": "official", "train_trials": train_trials, "test_trials": test_trials}
-        run_dir = REPO / "runs" / f"radarode_ew_official{'' if epochs == 20 else epochs}"
+        run_dir = REPO / "runs" / f"radarode_ew{VARIANT}_official{'' if epochs == 20 else epochs}"
     else:
         index = int(sys.argv[1])
         fold = loso_folds()[index]
         train_trials, val_trials, test_trials = trials_of(fold.train), trials_of(fold.val), trials_of(fold.test)
         split = fold._asdict()
-        runs = REPO / "runs" / ("radarode_ew" if epochs == 20 else f"radarode_ew{epochs}")      # 20 エポックの既存の結果と分ける
+        runs = REPO / "runs" / (f"radarode_ew{VARIANT}" if epochs == 20 else f"radarode_ew{VARIANT}{epochs}")      # 20 エポックの既存の結果と分ける
         run_dir = runs / f"fold{index:02d}_test{fold.test[0]}"
     if (run_dir / "predictions.npz").exists():
         print(f"[skip] {run_dir.name}", flush=True)
@@ -119,7 +121,7 @@ def main() -> None:
     trainer = build_trainer(run_dir, epochs, loader_gen)
     n_params = sum(p.numel() for p in trainer.model.parameters())
     (run_dir / "config.json").write_text(json.dumps({"fold": split, "weighting": "EW", "width": "cft", "ode": "on",
-                                                     "epochs": epochs, "train_stride_samples": TRAIN_STRIDE,
+                                                     "epochs": epochs, "sst": SST_VARIANT, "target": TARGET, "train_stride_samples": TRAIN_STRIDE,
                                                      "n_train": len(train_set), "n_val": len(val_set),
                                                      "n_params": n_params}, indent=1))
     print(f"[{run_dir.name}] train {len(train_set)} / val {len(val_set)} 窓, {n_params:,} パラメータ, {epochs} エポック", flush=True)

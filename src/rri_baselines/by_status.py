@@ -12,7 +12,7 @@ import numpy as np
 from rri_baselines.protocol import DATA_ROOT, eval_windows, load_trial, loso_folds, trials_of
 from rri_baselines.report import MMWAVE_RUNS, REPO
 
-METHODS = {"提案手法": MMWAVE_RUNS, "radarODE-MTL 20 ep": REPO / "runs/radarode_ew", "radarODE-MTL 200 ep": REPO / "runs/radarode_ew200",
+METHODS = {"提案手法": MMWAVE_RUNS, "radarODE-MTL 20 ep": REPO / "runs/radarode_ew_wsst", "(誤) radarODE-MTL 低域 20 ep": REPO / "runs/radarode_ew",
            "MIBINET": REPO / "runs/mibinet", "Wu・Sakamoto": REPO / "runs/wu2019"}
 STATUS = ["NB", "IB", "SP", "PE"]
 BINS = [(0, 0.6), (0.6, 0.8), (0.8, 1.2), (1.2, 1.6), (1.6, 2.4), (2.4, np.inf)]

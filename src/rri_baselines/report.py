@@ -16,14 +16,17 @@ REPO = Path(__file__).resolve().parents[2]
 MMWAVE_RUNS = Path("/home/shunya/research/mmwave-rri/runs")
 METHODS = {"wu2019": ("Wu・Sakamoto 2019", "trial{t}_pred_ms"),
            "mibinet": ("MIBINET 2023", "trial{t}_pred_ms"),
-           "radarode_ew": ("radarODE-MTL(等重み, 20 エポック)", "trial{t}_pred_ms"),
-           "radarode_ew200": ("radarODE-MTL(等重み, 200 エポック)", "trial{t}_pred_ms")}
+           "radarode_ew_wsst": ("radarODE-MTL(等重み, 20 エポック)", "trial{t}_pred_ms"),
+           "radarode_ew_wsst100": ("radarODE-MTL(等重み, 100 エポック)", "trial{t}_pred_ms"),
+           # 09-28 の値. SST の帯域を取り違えていた(0.2〜7.7 Hz). 経緯の記録として残す
+           "radarode_ew": ("(誤) radarODE-MTL, SST 0.2〜7.7 Hz, 20 エポック", "trial{t}_pred_ms"),
+           "radarode_ew200": ("(誤) radarODE-MTL, SST 0.2〜7.7 Hz, 200 エポック", "trial{t}_pred_ms")}
 # 原論文の報告値. データ・分割・目標量・指標がそれぞれ違うので, 上の表と同じ列には入れない(Fable の助言どおり併記だけ)
 PAPER = [("EQ-Radio 2016", "IBI 誤差の平均 3.2 ms(p.2・p.8)", "自前データ. 生のレーダから位相を取る前段込み. 拍ごとの IBI"),
          ("Wu・Sakamoto 2019", "RMSE 平均 20.6 ms, 絶対誤差 15.6 ± 13.5 ms", "自前 7 名, 被験者ごとの学習. 入力は呼吸を含む変位"),
          ("MIBINET 2023", "RMSE 20.69 ms(Table 3・4, Radar-HS)", "推論時に心電図の R 波で窓を切り, 7 窓平均と平滑化の後. 連結 RMSE"),
-         ("radarODE-MTL(等重み)", "PPI 誤差 8.0 ms(Table I, p.8)", "MMECG 11 分割(被験者単位), 4 s・ストライド 1 s の窓, 200 エポック, 5 回平均. "
-                                                                       "単一タスク 9.6 ms, EGA(T = 1.0)8.5 ms")]
+         ("radarODE-MTL(等重み)", "PPI 誤差 8.0 ms(Table I, p.8)", "本文は MMECG 11 分割(被験者単位)・ストライド 1 s・200 エポック・5 回平均. 公開実装の分割(試行 75〜85 を test, "
+                                                                       "同じ参加者の他の試行は学習側, エポックは test で選ぶ)で学習すると 7.6〜8.1 ms(runs/radarode_ew_wsst_official)")]
 
 
 def collect(run_root: Path, key: str) -> dict | None:
