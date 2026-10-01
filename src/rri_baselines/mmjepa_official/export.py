@@ -25,7 +25,7 @@ from pathlib import Path
 import numpy as np
 import torch
 
-from rri_baselines.mmjepa.data import TRAIN_STEP, trial_hr_labels
+from rri_baselines.mmjepa.data import HR_MIN_DIST, HR_PROM, TRAIN_STEP, trial_hr_labels
 from rri_baselines.mmjepa_official.common import official_on_path
 from rri_baselines.protocol import load_trial
 
@@ -107,13 +107,14 @@ def train_starts(n_samples: int, step: int = TRAIN_STEP) -> np.ndarray:
     return np.arange(0, n_samples - SEG + 1, step)
 
 
-def export_split(trials: list[int], path: Path, limit: int | None = None) -> dict:
+def export_split(trials: list[int], path: Path, limit: int | None = None, hr_dist: int = HR_MIN_DIST,
+                 hr_prom: float = HR_PROM) -> dict:
     """学習または val の参加者の試行を 1 つの npy に(事前学習の hr 付き. end2end_train.py も同じファイルを読む)."""
     t0 = time.time()
     items = []
     for t in trials:
         st = train_starts(len(load_trial(t)["rcg_z"]))
-        items.append((t, st, trial_hr_labels(t, st)))       # 擬似心拍数は試行全体の窓で計算(cache/mmjepa を共有)
+        items.append((t, st, trial_hr_labels(t, st, hr_dist, hr_prom)))   # 擬似心拍数は試行全体の窓で計算. 検出の細部は分割の学習側で選ぶ
     if limit is not None:            # 動作確認用: 全試行から等間隔に limit 窓
         flat = [(k, j) for k, (_, st, _) in enumerate(items) for j in range(len(st))]
         pick = sorted(set(np.linspace(0, len(flat) - 1, limit).round().astype(int).tolist()))
@@ -124,7 +125,7 @@ def export_split(trials: list[int], path: Path, limit: int | None = None) -> dic
     d = build(items, with_hr=True)
     size = save_npy_dict(path, d)
     info = {"path": str(path), "bytes": size, "n": int(len(d["y"])), "trials": trials, "sec": time.time() - t0,
-            "step": TRAIN_STEP, "hr_mean": float(d["hr"].mean()), "hr_std": float(d["hr"].std())}
+            "step": TRAIN_STEP, "hr_dist": hr_dist, "hr_prom": hr_prom, "hr_mean": float(d["hr"].mean()), "hr_std": float(d["hr"].std())}
     path.with_suffix(".json").write_text(json.dumps(info, indent=1))
     return info
 
@@ -146,6 +147,8 @@ def export_infer(rows: list[tuple[int, int, int]], out_dir: Path, max_rows: int 
         for t in dict.fromkeys(part[:, 0].tolist()):
             items.append((t, part[part[:, 0] == t, 2], None))
         d = build(items, with_hr=False)
+        d["ecg"][:] = 0.0          # 正解 ECG は渡さない. 公式の推論は生成の後の MSE とログにしか使わない(inference_from_train.py
+                                   # の batch ループ)が, 疑いを残さないためゼロで埋める(2026-10-02 レビュー)
         assert np.array_equal(d["start"], np.concatenate([s for _, s, _ in items]))
         path = out_dir / f"chunk{c:03d}.npy"
         size = save_npy_dict(path, d)

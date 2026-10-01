@@ -31,13 +31,17 @@
     pair_mean   同じ 2 区間. 重なりは単純平均(生成 2 回/窓)
     triple_tri  区間 0・144・288. 三角窓の重みで重ねて重みの和で割る(生成 3 回/窓)
     triple_mean 同じ 3 区間. 単純平均(生成 3 回/窓)
+    triple_hard 同じ 3 区間. 混ぜずに, 各標本を三角の重みが最大の区間から取る(境界 328・472)(生成 3 回/窓).
+                pair_lin の切り替えの中点や *_mean の平均は窓中央に来るので, 別々の生成の R 波がずれると山が二重になりうる.
+                それを避ける候補として足した(2026-10-02 レビュー. 相手に有利な側)
+  候補の 5 通りは, 途中の test(--upto 20)を出す前に凍結した. 以後は足さない・変えない
   生成 1 回 = エンコーダ 1 回 + DiT 100 回(DDIM). RR は ecg_rri.window_rr(NeuroKit2 0.2.13)で窓中央をまたぐ 2 ピーク.
 
 論文と公式の食い違いの扱い(書き直し版 mmjepa/run.py の調査を引き継ぐ. 詳細は PT_ARGS / DIT_ARGS の注):
   - λ_vt = 0.1(論文 式 (8), 図 6(b) の最良): 公式は重みなしの和. 公式の -hr_weight_a / -hr_weight_b(式 (10) の W_a, W_b)を
     0.1 倍(1 → 0.1, 2 → 0.2)にすると L_vt 全体が 0.1 倍になり, λ_vt = 0.1 と厳密に同じ
   - 周波数損失(論文 式 (14)(16)): --use-freq-loss で入れる(重み 0.005 は公式の既定)
-  - 事前学習 300 エポック(公式 docstring), DiT 200 エポック(論文・公式とも記載なし. radarODE-MTL の 200 に揃える(2026-10-02 ユーザ). 公式の 50 ごとの保存 4 個を val で選ぶ)
+  - 事前学習 300 エポック(公式 docstring), DiT 200 エポック(論文・公式とも記載なし. radarODE-MTL の 200 に揃える(2026-10-02 ユーザ). 10 ごとの保存 20 個を val で選ぶ)
   - 推論は公式どおり checkpoint["model"](EMA でない)と DDIM 100 段
 """
 import argparse
@@ -60,7 +64,9 @@ from rri_baselines.protocol import WINDOW_LEN, eval_windows, load_trial, loso_fo
 PY = sys.executable
 LAUNCH = [PY, "-m", "rri_baselines.mmjepa_official.launch"]
 SEG = 512
-STITCH = {"pair_lin": (0, 288), "pair_mean": (0, 288), "triple_tri": (0, 144, 288), "triple_mean": (0, 144, 288)}
+STITCH = {"pair_lin": (0, 288), "pair_mean": (0, 288), "triple_tri": (0, 144, 288), "triple_mean": (0, 144, 288),
+          "triple_hard": (0, 144, 288)}
+# 候補はこの 5 通りで凍結(2026-10-02). 途中の test(--upto 20)を出したあとに候補を足したり変えたりしない(test を見て設計しない)
 GEN_OFFSETS = (0, 144, 288)
 
 
@@ -189,12 +195,24 @@ def stage_export(cfg: Config, index: int) -> dict:
     fold = loso_folds()[index]
     d = data_dir(cfg, index)
     info = {}
+    # 擬似心拍数のピーク検出の細部を, この分割の学習 9 名の試行だけで選ぶ(test・val の ECG に触れない. レビュー 2026-10-02)
+    out = fold_dir(cfg, index)
+    hp_file = out / "hr_params.json"
+    if hp_file.exists():
+        hp = json.loads(hp_file.read_text())
+    else:
+        from rri_baselines.mmjepa.data import select_hr_params
+        sel_trials = trials_of(fold.train)[:cfg.val_trials] if cfg.train_limit else trials_of(fold.train)
+        hp = select_hr_params(sel_trials)
+        hp_file.write_text(json.dumps(hp, indent=1))
+        print(f"[export fold{index}] 擬似心拍数の検出: {hp['best']}(相関 {hp['table'][hp['best']]['corr']:.3f}, "
+              f"MAE {hp['table'][hp['best']]['mae_bpm']:.1f} bpm, 定数 {hp['const_mae_bpm']:.1f} bpm)", flush=True)
     for name, subj, lim in (("train", fold.train, cfg.train_limit), ("val", fold.val, cfg.valnpy_limit)):
         f = d / f"{name}.npy"
         if f.exists() and f.with_suffix(".json").exists():
             info[name] = json.loads(f.with_suffix(".json").read_text())
             continue
-        info[name] = ex.export_split(trials_of(subj), f, limit=lim)
+        info[name] = ex.export_split(trials_of(subj), f, limit=lim, hr_dist=hp["dist"], hr_prom=hp["prom"])
         print(f"[export fold{index}] {name}: {info[name]['n']} 窓, {info[name]['bytes'] / 1e9:.2f} GB, "
               f"{info[name]['sec']:.0f} s", flush=True)
     return info
@@ -284,6 +302,12 @@ def stitch(gens: dict, t: int, w: int, start: int, how: str) -> np.ndarray:
     elif how == "triple_tri":
         tri = np.minimum(np.arange(1, SEG + 1), np.arange(SEG, 0, -1)).astype(float)
         ws = {o: tri for o in offs}
+    elif how == "triple_hard":           # 混ぜない: 各標本を三角の重みが最大の区間から取る(境界 328・472. 窓中央付近は中央の区間 1 本)
+        out = np.empty(WINDOW_LEN)
+        bounds = [(0, 0, 328), (144, 328, 472), (288, 472, WINDOW_LEN)]
+        for o, a, b in bounds:
+            out[a:b] = gens[(t, w, start + o)][a - o:b - o]
+        return out
     else:                                # *_mean
         ws = {o: np.ones(SEG) for o in offs}
     for o in offs:
@@ -432,7 +456,8 @@ def write_queue(cfg: Config) -> None:
         args_inf = " ".join(infer_args(cfg, Path("<chunk>.npy"), Path("<encoder>"), Path("<epoch_XXX.pt>"),
                                        Path("<out>"), "cuda:0"))
         body = f"""#!/bin/bash
-# mm-JEPA-ECG(Liu ら, AAAI-26)公式実装 lanyangyang/mmJEPA-ECG @ 4423ef6 を無改変で, MMECG LOSO の分割 {i}
+# mm-JEPA-ECG(Liu ら, AAAI-26)公式実装 lanyangyang/mmJEPA-ECG @ 4423ef6 のソースを変更せずに, MMECG LOSO の分割 {i}
+# (実行時に変えるのは GPU 番号・データ読み込みの並列数・乱数種・torch.compile の無効化の 4 点. 最後は公式のままでは事前学習の重みが読み込まれない不具合を避けるため)
 # (test 参加者 {fold.test[0]}, val 参加者 {fold.val[0]}, 学習 9 名). 書き出し → 事前学習 → DiT → val で (重み × つなぎ方) を選択 → test → 後片づけ.
 # 途中で止めたら同じスクリプトを流し直せば, 終わった段は飛ばす(公式の学習自体は途中再開できないので, その段は最初から).
 #

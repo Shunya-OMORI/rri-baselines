@@ -20,10 +20,13 @@ SEG = 512                    # モデルの入力長(2.56 s)
 N_PATCH, PATCH = 16, 32
 TRAIN_STEP = 128             # 学習窓のずらし幅(論文に記載なし. 公式の log-every=155 ≒ 1 エポックの段数に近くなる値)
 HR_BAND = (0.18, 2.5)        # 論文 p.38965
-# ピーク検出の細部は論文に記載なし. 学習側(分割 0 の学習 9 名から 15 試行・4,110 窓)で正解 HR との相関が最も高い組を採る
-# (最小間隔 0.4/0.5/0.6 s × 卓立度 0/0.3/0.5 × 波形/包絡 の 18 通り. 最良でも相関 0.25・MAE 8.9 bpm. 定数予測は 7.6 bpm)
+# ピーク検出の細部(最小間隔・卓立度)は論文に記載なし. **分割ごとに, その分割の学習 9 名の試行だけ**で, 正解 HR との相関が
+# 最も高い組を選ぶ(select_hr_params). 2026-10-02 のレビューで, 以前の「分割 0 の学習 9 名で選んだ組を全分割に使う」は
+# 他の分割の test 参加者の ECG に触れていたので改めた. 以下は既定値(書き直し版の初回の選択. 分割 0 の学習側での最良,
+# 相関 0.25・MAE 8.9 bpm. 定数予測は 7.6 bpm)
 HR_MIN_DIST = int(0.5 * FS)             # ピークの最小間隔 100 標本
 HR_PROM = 0.3                           # 窓の中で最大の卓立度の 0.3 倍未満の山は捨てる
+HR_GRID = [(int(d * FS), pr) for d in (0.4, 0.5, 0.6) for pr in (0.0, 0.3, 0.5)]   # 選択の候補 9 通り
 CACHE = Path(__file__).resolve().parents[3] / "cache/mmjepa"
 
 
@@ -33,36 +36,58 @@ def band_filtered(rcg: np.ndarray) -> np.ndarray:
     return sosfiltfilt(sos, rcg.astype(np.float64), axis=0)
 
 
-def _hr_of(seg: np.ndarray) -> float:
-    p, _ = find_peaks(seg, distance=HR_MIN_DIST)
-    if len(p):
+def _hr_of(seg: np.ndarray, dist: int = HR_MIN_DIST, prom: float = HR_PROM) -> float:
+    p, _ = find_peaks(seg, distance=dist)
+    if len(p) and prom > 0:
         pr = peak_prominences(seg, p)[0]
-        p = p[pr >= HR_PROM * pr.max()]
+        p = p[pr >= prom * pr.max()]
     return 60.0 * FS / float(np.mean(np.diff(p))) if len(p) >= 2 else np.nan
 
 
-def pseudo_hr(filtered: np.ndarray, starts: np.ndarray) -> np.ndarray:
+def pseudo_hr(filtered: np.ndarray, starts: np.ndarray, dist: int = HR_MIN_DIST, prom: float = HR_PROM) -> np.ndarray:
     """窓 [s, s+512) ごとの擬似心拍数[bpm] (n,). 50 点それぞれでピーク間隔の平均から心拍数を出し, 点の中央値.
     取れない窓は試行の擬似心拍数の中央値で埋める(公式は全窓に hr を持つ)."""
     out = np.full(len(starts), np.nan)
     with warnings.catch_warnings():
         warnings.simplefilter("ignore", RuntimeWarning)          # 全点で山が取れない窓の All-NaN 警告
         for i, s in enumerate(starts):
-            out[i] = np.nanmedian([_hr_of(filtered[s:s + SEG, c]) for c in range(filtered.shape[1])] + [np.nan])
+            out[i] = np.nanmedian([_hr_of(filtered[s:s + SEG, c], dist, prom) for c in range(filtered.shape[1])] + [np.nan])
     fill = np.nanmedian(out) if np.isfinite(out).any() else 75.0
     return np.where(np.isfinite(out), out, fill).astype(np.float32)
 
 
-def trial_hr_labels(trial_id: int, starts: np.ndarray) -> np.ndarray:
+def trial_hr_labels(trial_id: int, starts: np.ndarray, dist: int = HR_MIN_DIST, prom: float = HR_PROM) -> np.ndarray:
     CACHE.mkdir(parents=True, exist_ok=True)
-    f = CACHE / f"hr_d{HR_MIN_DIST}_p{HR_PROM}_step{int(starts[1] - starts[0]) if len(starts) > 1 else 0}_trial{trial_id}.npy"
+    f = CACHE / f"hr_d{dist}_p{prom}_step{int(starts[1] - starts[0]) if len(starts) > 1 else 0}_trial{trial_id}.npy"
     if f.exists():
         v = np.load(f)
         if len(v) == len(starts):
             return v
-    v = pseudo_hr(band_filtered(load_trial(trial_id)["rcg_z"]), starts)
+    v = pseudo_hr(band_filtered(load_trial(trial_id)["rcg_z"]), starts, dist, prom)
     np.save(f, v)
     return v
+
+
+def select_hr_params(train_trials: list[int], step: int = 4 * TRAIN_STEP) -> dict:
+    """擬似心拍数のピーク検出の (最小間隔, 卓立度) を, 学習側の試行だけで選ぶ(正解 R 波の窓平均 HR との相関が最大の組).
+    窓は 512 標本(ずらし 4 × 128 標本)で間引く. test・val の参加者の ECG には触れない."""
+    data = []
+    for t in train_trials:
+        tr = load_trial(t)
+        st = np.arange(0, len(tr["rcg_z"]) - SEG + 1, step)
+        data.append((band_filtered(tr["rcg_z"]), st, true_hr(tr["peaks"], st)))
+    table = {}
+    for dist, prom in HR_GRID:
+        ps = np.concatenate([pseudo_hr(f, st, dist, prom) for f, st, _ in data])
+        ts = np.concatenate([h for _, _, h in data])
+        ok = np.isfinite(ts)
+        table[f"d{dist}_p{prom}"] = {"dist": dist, "prom": prom, "corr": float(np.corrcoef(ps[ok], ts[ok])[0, 1]),
+                                     "mae_bpm": float(np.mean(np.abs(ps[ok] - ts[ok])))}
+    ts_all = np.concatenate([h for _, _, h in data]); ok = np.isfinite(ts_all)
+    best = max(table, key=lambda k: table[k]["corr"])
+    return {"best": best, "dist": table[best]["dist"], "prom": table[best]["prom"], "table": table,
+            "n_windows": int(ok.sum()), "const_mae_bpm": float(np.mean(np.abs(ts_all[ok] - ts_all[ok].mean()))),
+            "trials": train_trials}
 
 
 def true_hr(peaks: np.ndarray, starts: np.ndarray) -> np.ndarray:
