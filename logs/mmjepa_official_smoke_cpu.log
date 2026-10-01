@@ -1,0 +1,50 @@
+[export fold0] train: 16 窓, 0.00 GB, 1 s
+[export fold0] val: 8 窓, 0.00 GB, 0 s
+[select fold0] epoch_015: pair_lin 92.42, pair_mean 77.17, triple_tri 92.42, triple_mean 358.83
+[select fold0] epoch_030: pair_lin 178.83, pair_mean 163.83, triple_tri 92.42, triple_mean 92.42
+Traceback (most recent call last):
+  File "<frozen runpy>", line 198, in _run_module_as_main
+  File "<frozen runpy>", line 88, in _run_code
+  File "/home/shunya/research/rri-baselines/src/rri_baselines/mmjepa_official/run.py", line 451, in <module>
+    run_all(SMOKE, i, "cpu")
+  File "/home/shunya/research/rri-baselines/src/rri_baselines/mmjepa_official/run.py", line 384, in run_all
+    stage_test(cfg, index, device)
+  File "/home/shunya/research/rri-baselines/src/rri_baselines/mmjepa_official/run.py", line 332, in stage_test
+    gens = generate(cfg, out, f"test/{ck_name}_{how}", rows, encoder_ckpt(cfg, out), ck, device)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/shunya/research/rri-baselines/src/rri_baselines/mmjepa_official/run.py", line 248, in generate
+    sec += run_stage(f"infer_{tag.replace('/', '_')}_{co.name}",
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/shunya/research/rri-baselines/src/rri_baselines/mmjepa_official/common.py", line 125, in run_stage
+    raise RuntimeError(f"{name} が失敗(戻り値 {p.returncode}). ログ {log} の末尾:\n" + "\n".join(tail))
+RuntimeError: infer_test_epoch_015_pair_mean_chunk000 が失敗(戻り値 1). ログ /home/shunya/research/rri-baselines/cache/mmjepa_official_smoke/runs/fold00_test1/logs/infer.log の末尾:
+  state_dict = torch.load(args.encoder_ckpt, map_location=device)['student_state_dict']
+[2026-10-01 23:53:10] Loaded encoder weights.
+[2026-10-01 23:53:10] Loading diffusion checkpoint from: /home/shunya/research/rri-baselines/cache/mmjepa_official_smoke/runs/fold00_test1/e2e/000-e2e/checkpoints/epoch_015.pt
+/home/shunya/research/external/mmJEPA-ECG/inference_from_train.py:158: FutureWarning: You are using `torch.load` with `weights_only=False` (the current default value), which uses the default pickle module implicitly. It is possible to construct malicious pickle data which will execute arbitrary code during unpickling (See https://github.com/pytorch/pytorch/blob/main/SECURITY.md#untrusted-models for more details). In a future release, the default value for `weights_only` will be flipped to `True`. This limits the functions that could be executed during unpickling. Arbitrary objects will no longer be allowed to be loaded via this mode unless they are explicitly allowlisted by the user via `torch.serialization.add_safe_globals`. We recommend you start setting `weights_only=True` for any use case where you don't have full control of the loaded file. Please open an issue on GitHub for any issues related to this experimental feature.
+  checkpoint = torch.load(args.ckpt, map_location=device)
+[2026-10-01 23:53:10] Loaded model weights
+[2026-10-01 23:53:10] Starting inference on all test data...
+[2026-10-01 23:53:10] Debug shapes (first batch):
+[2026-10-01 23:53:10]   rcg: torch.Size([6, 16, 50, 32]) -> rcg_fmt: torch.Size([6, 16, 50, 32])
+[2026-10-01 23:53:10]   up_feat: torch.Size([6, 16, 50, 192]) -> up_flat: torch.Size([6, 800, 192])
+[2026-10-01 23:53:10]   Expected up_flat: [B, 128, 192] = [6, 128, 192]
+[2026-10-01 23:53:10] Debug statistics:
+[2026-10-01 23:53:10]   rcg range: [-12.9530, 12.8174], mean: -0.0000
+[2026-10-01 23:53:10]   up_flat range: [-4.3454, 4.6524], mean: -0.0743
+[2026-10-01 23:53:10]   ecg_p range: [-1.0000, 1.0000], mean: -0.6758
+[2026-10-01 23:53:22]   samples range: [-1.0000, 1.0000], mean: -0.0724
+[2026-10-01 23:53:22]   ecg_full range: [-1.0000, 1.0000], mean: -0.6758
+Traceback (most recent call last):
+  File "<frozen runpy>", line 198, in _run_module_as_main
+  File "<frozen runpy>", line 88, in _run_code
+  File "/home/shunya/research/rri-baselines/src/rri_baselines/mmjepa_official/launch.py", line 87, in <module>
+    main()
+  File "/home/shunya/research/rri-baselines/src/rri_baselines/mmjepa_official/launch.py", line 83, in main
+    exec(compile(src, str(path), "exec"), glb)
+  File "/home/shunya/research/external/mmJEPA-ECG/inference_from_train.py", line 290, in <module>
+    main(args)
+  File "/home/shunya/research/external/mmJEPA-ECG/inference_from_train.py", line 235, in main
+    pred_np = samples[:7].reshape(7, -1)[:, :512].cpu().numpy()
+              ^^^^^^^^^^^^^^^^^^^^^^^^^^
+RuntimeError: shape '[7, -1]' is invalid for input of size 3456

@@ -1,0 +1,35 @@
+
+==== 2026-10-01 23:48:35 /home/shunya/research/rri-baselines/.venv/bin/python -m rri_baselines.mmjepa_official.launch mmJEPA.py -batch_size 8 -mask_ch 10 -mask_time 2 -epochs 10 -lr 5e-4 -ema_m 0.996 -d_model 192 -n_vars 50 -num_workers 2 -n_layers 2 -pre_layers 1 -n_heads 8 -d_ff 256 -ema_warmup_ratio 0.1 -eta_min_ratio 0.2 -warm 0.1 -patch_size 32 -stride 32 -device cpu -profile_epoch 1 -hr_delta 5.0 -hr_weight_a 0.1 -hr_weight_b 0.2
+Warning: thop not available. Install with: pip install thop
+Epoch 01 | tr_time_loss=0.80493 | tr_cha_loss=0.79971 | tr_blk_loss=0.80065 | tr_hr_loss=1053.74527 | tr_hr_mae=71.34539 | tr_total_loss=1056.15056
+Epoch 01 | te_time_loss=0.65618 | te_cha_loss=0.65311 | te_blk_loss=0.68466 | te_hr_loss=1203.40686 | te_hr_mae=77.34799 | te_total_loss=1205.40081
+Epoch total train/test: 2.200s
+Epoch 02 | tr_time_loss=0.78124 | tr_cha_loss=0.78095 | tr_blk_loss=0.78397 | tr_hr_loss=1053.36957 | tr_hr_mae=71.33235 | tr_total_loss=1055.71573
+Epoch 02 | te_time_loss=0.67788 | te_cha_loss=0.66336 | te_blk_loss=0.66346 | te_hr_loss=1202.79138 | te_hr_mae=77.32809 | te_total_loss=1204.79608
+Epoch total train/test: 2.329s
+Epoch 03 | tr_time_loss=0.74435 | tr_cha_loss=0.74214 | tr_blk_loss=0.73999 | tr_hr_loss=1052.67053 | tr_hr_mae=71.30875 | tr_total_loss=1054.89701
+Epoch 03 | te_time_loss=0.64573 | te_cha_loss=0.64237 | te_blk_loss=0.65085 | te_hr_loss=1202.13684 | te_hr_mae=77.30676 | te_total_loss=1204.07579
+Epoch total train/test: 1.499s
+Epoch 04 | tr_time_loss=0.74367 | tr_cha_loss=0.72961 | tr_blk_loss=0.71528 | tr_hr_loss=1051.96017 | tr_hr_mae=71.28355 | tr_total_loss=1054.14873
+Epoch 04 | te_time_loss=0.65754 | te_cha_loss=0.63551 | te_blk_loss=0.65949 | te_hr_loss=1201.15356 | te_hr_mae=77.27512 | te_total_loss=1203.10610
+Epoch total train/test: 1.558s
+Epoch 05 | tr_time_loss=0.74626 | tr_cha_loss=0.71039 | tr_blk_loss=0.70126 | tr_hr_loss=1050.94543 | tr_hr_mae=71.24840 | tr_total_loss=1053.10334
+Epoch 05 | te_time_loss=0.65585 | te_cha_loss=0.63369 | te_blk_loss=0.63843 | te_hr_loss=1200.13513 | te_hr_mae=77.24220 | te_total_loss=1202.06309
+Epoch total train/test: 1.324s
+Epoch 06 | tr_time_loss=0.74811 | tr_cha_loss=0.71306 | tr_blk_loss=0.70349 | tr_hr_loss=1049.98053 | tr_hr_mae=71.21368 | tr_total_loss=1052.14519
+Epoch 06 | te_time_loss=0.71867 | te_cha_loss=0.62858 | te_blk_loss=0.64661 | te_hr_loss=1198.80273 | te_hr_mae=77.19905 | te_total_loss=1200.79659
+Epoch total train/test: 1.080s
+Epoch 07 | tr_time_loss=0.74614 | tr_cha_loss=0.72198 | tr_blk_loss=0.71417 | tr_hr_loss=1048.78741 | tr_hr_mae=71.17263 | tr_total_loss=1050.96971
+Epoch 07 | te_time_loss=0.64868 | te_cha_loss=0.62847 | te_blk_loss=0.65276 | te_hr_loss=1197.19580 | te_hr_mae=77.14656 | te_total_loss=1199.12571
+Epoch total train/test: 1.235s
+Epoch 08 | tr_time_loss=0.71960 | tr_cha_loss=0.72677 | tr_blk_loss=0.71475 | tr_hr_loss=1047.85098 | tr_hr_mae=71.13859 | tr_total_loss=1050.01210
+Epoch 08 | te_time_loss=0.65854 | te_cha_loss=0.66829 | te_blk_loss=0.65275 | te_hr_loss=1195.99927 | te_hr_mae=77.10815 | te_total_loss=1197.97884
+Epoch total train/test: 1.038s
+Epoch 09 | tr_time_loss=0.72163 | tr_cha_loss=0.72265 | tr_blk_loss=0.71240 | tr_hr_loss=1046.63263 | tr_hr_mae=71.09818 | tr_total_loss=1048.78931
+Epoch 09 | te_time_loss=0.66427 | te_cha_loss=0.67658 | te_blk_loss=0.64510 | te_hr_loss=1194.98267 | te_hr_mae=77.07513 | te_total_loss=1196.96862
+Epoch total train/test: 1.137s
+Epoch 10 | tr_time_loss=0.73062 | tr_cha_loss=0.72531 | tr_blk_loss=0.72376 | tr_hr_loss=1045.96014 | tr_hr_mae=71.07278 | tr_total_loss=1048.13983
+Epoch 10 | te_time_loss=0.75313 | te_cha_loss=0.66744 | te_blk_loss=0.66986 | te_hr_loss=1194.17773 | te_hr_mae=77.04930 | te_total_loss=1196.26817
+Epoch total train/test: 1.125s
+
+Statistics saved to: checkpoints/lr5e-04__20261001_234838/statistics.txt

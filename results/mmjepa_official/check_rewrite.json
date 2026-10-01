@@ -1,0 +1,19 @@
+{
+ "encoder_full": 0.0,
+ "encoder_masked_s_x": 0.0,
+ "encoder_masked_z_pad": 0.0,
+ "predictor_targets": 5.960464477539062e-07,
+ "predictor_hr": 7.450580596923828e-09,
+ "mask_identical": true,
+ "dit_eps": 0.0,
+ "dit_eps_scale": 1.1449285745620728,
+ "ddim100_sample": 8.881092071533203e-06,
+ "data_rcg": 4.76837158203125e-07,
+ "data_rcg_mmJEPA_layout_is_LVP": true,
+ "data_ecg": 0.0,
+ "data_ecg_img": 0.0,
+ "data_pos": 0.0,
+ "data_hr": 0.0,
+ "data_y_is_trial": true,
+ "pass": true
+}

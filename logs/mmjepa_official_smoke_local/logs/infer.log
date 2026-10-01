@@ -1,0 +1,95 @@
+
+==== 2026-10-01 23:52:17 /home/shunya/research/rri-baselines/.venv/bin/python -m rri_baselines.mmjepa_official.launch inference_from_train.py --test-npy /home/shunya/research/rri-baselines/cache/mmjepa_official_smoke/data/fold00_test1/infer/val/epoch_015/chunk000.npy --n-vars 50 --patch-len 32 --stride 32 --encoder-ckpt /home/shunya/research/rri-baselines/cache/mmjepa_official_smoke/runs/fold00_test1/pretrain/checkpoints/lr5e-04__20261001_234838/checkpoint_epoch_10.pth --enc-dim 192 --enc-layers 2 --enc-heads 8 --enc-ff 256 --ckpt /home/shunya/research/rri-baselines/cache/mmjepa_official_smoke/runs/fold00_test1/e2e/000-e2e/checkpoints/epoch_015.pt --gpu-id 0 --batch-size 128 --output-dir /home/shunya/research/rri-baselines/cache/mmjepa_official_smoke/runs/fold00_test1/infer/val/epoch_015/chunk000 --seed 42 --gen-ecg-name gen.npy --ecg-name ref.npy
+[2026-10-01 23:52:22] Using device: cpu
+[2026-10-01 23:52:23] Enabled torch.compile
+/home/shunya/research/external/mmJEPA-ECG/inference_from_train.py:118: FutureWarning: You are using `torch.load` with `weights_only=False` (the current default value), which uses the default pickle module implicitly. It is possible to construct malicious pickle data which will execute arbitrary code during unpickling (See https://github.com/pytorch/pytorch/blob/main/SECURITY.md#untrusted-models for more details). In a future release, the default value for `weights_only` will be flipped to `True`. This limits the functions that could be executed during unpickling. Arbitrary objects will no longer be allowed to be loaded via this mode unless they are explicitly allowlisted by the user via `torch.serialization.add_safe_globals`. We recommend you start setting `weights_only=True` for any use case where you don't have full control of the loaded file. Please open an issue on GitHub for any issues related to this experimental feature.
+  state_dict = torch.load(args.encoder_ckpt, map_location=device)['student_state_dict']
+[2026-10-01 23:52:23] Loaded encoder weights.
+[2026-10-01 23:52:23] Loading diffusion checkpoint from: /home/shunya/research/rri-baselines/cache/mmjepa_official_smoke/runs/fold00_test1/e2e/000-e2e/checkpoints/epoch_015.pt
+/home/shunya/research/external/mmJEPA-ECG/inference_from_train.py:158: FutureWarning: You are using `torch.load` with `weights_only=False` (the current default value), which uses the default pickle module implicitly. It is possible to construct malicious pickle data which will execute arbitrary code during unpickling (See https://github.com/pytorch/pytorch/blob/main/SECURITY.md#untrusted-models for more details). In a future release, the default value for `weights_only` will be flipped to `True`. This limits the functions that could be executed during unpickling. Arbitrary objects will no longer be allowed to be loaded via this mode unless they are explicitly allowlisted by the user via `torch.serialization.add_safe_globals`. We recommend you start setting `weights_only=True` for any use case where you don't have full control of the loaded file. Please open an issue on GitHub for any issues related to this experimental feature.
+  checkpoint = torch.load(args.ckpt, map_location=device)
+[2026-10-01 23:52:23] Loaded model weights
+[2026-10-01 23:52:23] Starting inference on all test data...
+[2026-10-01 23:52:23] Debug shapes (first batch):
+[2026-10-01 23:52:23]   rcg: torch.Size([9, 16, 50, 32]) -> rcg_fmt: torch.Size([9, 16, 50, 32])
+[2026-10-01 23:52:23]   up_feat: torch.Size([9, 16, 50, 192]) -> up_flat: torch.Size([9, 800, 192])
+[2026-10-01 23:52:23]   Expected up_flat: [B, 128, 192] = [9, 128, 192]
+[2026-10-01 23:52:23] Debug statistics:
+[2026-10-01 23:52:23]   rcg range: [-12.8068, 14.0786], mean: 0.0000
+[2026-10-01 23:52:23]   up_flat range: [-4.3206, 4.8655], mean: -0.0722
+[2026-10-01 23:52:23]   ecg_p range: [-1.0000, 1.0000], mean: -0.4241
+[2026-10-01 23:52:40]   samples range: [-1.0000, 1.0000], mean: -0.0761
+[2026-10-01 23:52:40]   ecg_full range: [-1.0000, 1.0000], mean: -0.4241
+[2026-10-01 23:52:41] Saved visualization to /home/shunya/research/rri-baselines/cache/mmjepa_official_smoke/runs/fold00_test1/infer/val/epoch_015/chunk000/inference_ecg.png
+[2026-10-01 23:52:41] Processed batch 1, current MSE: 1.136588
+[2026-10-01 23:52:41] Inference completed!
+[2026-10-01 23:52:41] Processed 1 batches with 9 total samples
+[2026-10-01 23:52:41] Average MSE: 1.136588 (total_mse=10.23, total_samples=9)
+[2026-10-01 23:52:41] Generated ECG shape: (9, 512)
+[2026-10-01 23:52:41] Ground truth ECG shape: (9, 512)
+[2026-10-01 23:52:41] Results saved to: /home/shunya/research/rri-baselines/cache/mmjepa_official_smoke/runs/fold00_test1/infer/val/epoch_015/chunk000
+
+==== 2026-10-01 23:52:42 /home/shunya/research/rri-baselines/.venv/bin/python -m rri_baselines.mmjepa_official.launch inference_from_train.py --test-npy /home/shunya/research/rri-baselines/cache/mmjepa_official_smoke/data/fold00_test1/infer/val/epoch_030/chunk000.npy --n-vars 50 --patch-len 32 --stride 32 --encoder-ckpt /home/shunya/research/rri-baselines/cache/mmjepa_official_smoke/runs/fold00_test1/pretrain/checkpoints/lr5e-04__20261001_234838/checkpoint_epoch_10.pth --enc-dim 192 --enc-layers 2 --enc-heads 8 --enc-ff 256 --ckpt /home/shunya/research/rri-baselines/cache/mmjepa_official_smoke/runs/fold00_test1/e2e/000-e2e/checkpoints/epoch_030.pt --gpu-id 0 --batch-size 128 --output-dir /home/shunya/research/rri-baselines/cache/mmjepa_official_smoke/runs/fold00_test1/infer/val/epoch_030/chunk000 --seed 42 --gen-ecg-name gen.npy --ecg-name ref.npy
+[2026-10-01 23:52:46] Using device: cpu
+[2026-10-01 23:52:46] Enabled torch.compile
+/home/shunya/research/external/mmJEPA-ECG/inference_from_train.py:118: FutureWarning: You are using `torch.load` with `weights_only=False` (the current default value), which uses the default pickle module implicitly. It is possible to construct malicious pickle data which will execute arbitrary code during unpickling (See https://github.com/pytorch/pytorch/blob/main/SECURITY.md#untrusted-models for more details). In a future release, the default value for `weights_only` will be flipped to `True`. This limits the functions that could be executed during unpickling. Arbitrary objects will no longer be allowed to be loaded via this mode unless they are explicitly allowlisted by the user via `torch.serialization.add_safe_globals`. We recommend you start setting `weights_only=True` for any use case where you don't have full control of the loaded file. Please open an issue on GitHub for any issues related to this experimental feature.
+  state_dict = torch.load(args.encoder_ckpt, map_location=device)['student_state_dict']
+[2026-10-01 23:52:46] Loaded encoder weights.
+[2026-10-01 23:52:46] Loading diffusion checkpoint from: /home/shunya/research/rri-baselines/cache/mmjepa_official_smoke/runs/fold00_test1/e2e/000-e2e/checkpoints/epoch_030.pt
+/home/shunya/research/external/mmJEPA-ECG/inference_from_train.py:158: FutureWarning: You are using `torch.load` with `weights_only=False` (the current default value), which uses the default pickle module implicitly. It is possible to construct malicious pickle data which will execute arbitrary code during unpickling (See https://github.com/pytorch/pytorch/blob/main/SECURITY.md#untrusted-models for more details). In a future release, the default value for `weights_only` will be flipped to `True`. This limits the functions that could be executed during unpickling. Arbitrary objects will no longer be allowed to be loaded via this mode unless they are explicitly allowlisted by the user via `torch.serialization.add_safe_globals`. We recommend you start setting `weights_only=True` for any use case where you don't have full control of the loaded file. Please open an issue on GitHub for any issues related to this experimental feature.
+  checkpoint = torch.load(args.ckpt, map_location=device)
+[2026-10-01 23:52:47] Loaded model weights
+[2026-10-01 23:52:47] Starting inference on all test data...
+[2026-10-01 23:52:47] Debug shapes (first batch):
+[2026-10-01 23:52:47]   rcg: torch.Size([9, 16, 50, 32]) -> rcg_fmt: torch.Size([9, 16, 50, 32])
+[2026-10-01 23:52:47]   up_feat: torch.Size([9, 16, 50, 192]) -> up_flat: torch.Size([9, 800, 192])
+[2026-10-01 23:52:47]   Expected up_flat: [B, 128, 192] = [9, 128, 192]
+[2026-10-01 23:52:47] Debug statistics:
+[2026-10-01 23:52:47]   rcg range: [-12.8068, 14.0786], mean: 0.0000
+[2026-10-01 23:52:47]   up_flat range: [-4.3206, 4.8655], mean: -0.0722
+[2026-10-01 23:52:47]   ecg_p range: [-1.0000, 1.0000], mean: -0.4241
+[2026-10-01 23:53:03]   samples range: [-1.0000, 1.0000], mean: -0.2728
+[2026-10-01 23:53:03]   ecg_full range: [-1.0000, 1.0000], mean: -0.4241
+[2026-10-01 23:53:04] Saved visualization to /home/shunya/research/rri-baselines/cache/mmjepa_official_smoke/runs/fold00_test1/infer/val/epoch_030/chunk000/inference_ecg.png
+[2026-10-01 23:53:04] Processed batch 1, current MSE: 0.492062
+[2026-10-01 23:53:04] Inference completed!
+[2026-10-01 23:53:04] Processed 1 batches with 9 total samples
+[2026-10-01 23:53:04] Average MSE: 0.492062 (total_mse=4.43, total_samples=9)
+[2026-10-01 23:53:04] Generated ECG shape: (9, 512)
+[2026-10-01 23:53:04] Ground truth ECG shape: (9, 512)
+[2026-10-01 23:53:04] Results saved to: /home/shunya/research/rri-baselines/cache/mmjepa_official_smoke/runs/fold00_test1/infer/val/epoch_030/chunk000
+
+==== 2026-10-01 23:53:05 /home/shunya/research/rri-baselines/.venv/bin/python -m rri_baselines.mmjepa_official.launch inference_from_train.py --test-npy /home/shunya/research/rri-baselines/cache/mmjepa_official_smoke/data/fold00_test1/infer/test/epoch_015_pair_mean/chunk000.npy --n-vars 50 --patch-len 32 --stride 32 --encoder-ckpt /home/shunya/research/rri-baselines/cache/mmjepa_official_smoke/runs/fold00_test1/pretrain/checkpoints/lr5e-04__20261001_234838/checkpoint_epoch_10.pth --enc-dim 192 --enc-layers 2 --enc-heads 8 --enc-ff 256 --ckpt /home/shunya/research/rri-baselines/cache/mmjepa_official_smoke/runs/fold00_test1/e2e/000-e2e/checkpoints/epoch_015.pt --gpu-id 0 --batch-size 128 --output-dir /home/shunya/research/rri-baselines/cache/mmjepa_official_smoke/runs/fold00_test1/infer/test/epoch_015_pair_mean/chunk000 --seed 42 --gen-ecg-name gen.npy --ecg-name ref.npy
+[2026-10-01 23:53:10] Using device: cpu
+[2026-10-01 23:53:10] Enabled torch.compile
+/home/shunya/research/external/mmJEPA-ECG/inference_from_train.py:118: FutureWarning: You are using `torch.load` with `weights_only=False` (the current default value), which uses the default pickle module implicitly. It is possible to construct malicious pickle data which will execute arbitrary code during unpickling (See https://github.com/pytorch/pytorch/blob/main/SECURITY.md#untrusted-models for more details). In a future release, the default value for `weights_only` will be flipped to `True`. This limits the functions that could be executed during unpickling. Arbitrary objects will no longer be allowed to be loaded via this mode unless they are explicitly allowlisted by the user via `torch.serialization.add_safe_globals`. We recommend you start setting `weights_only=True` for any use case where you don't have full control of the loaded file. Please open an issue on GitHub for any issues related to this experimental feature.
+  state_dict = torch.load(args.encoder_ckpt, map_location=device)['student_state_dict']
+[2026-10-01 23:53:10] Loaded encoder weights.
+[2026-10-01 23:53:10] Loading diffusion checkpoint from: /home/shunya/research/rri-baselines/cache/mmjepa_official_smoke/runs/fold00_test1/e2e/000-e2e/checkpoints/epoch_015.pt
+/home/shunya/research/external/mmJEPA-ECG/inference_from_train.py:158: FutureWarning: You are using `torch.load` with `weights_only=False` (the current default value), which uses the default pickle module implicitly. It is possible to construct malicious pickle data which will execute arbitrary code during unpickling (See https://github.com/pytorch/pytorch/blob/main/SECURITY.md#untrusted-models for more details). In a future release, the default value for `weights_only` will be flipped to `True`. This limits the functions that could be executed during unpickling. Arbitrary objects will no longer be allowed to be loaded via this mode unless they are explicitly allowlisted by the user via `torch.serialization.add_safe_globals`. We recommend you start setting `weights_only=True` for any use case where you don't have full control of the loaded file. Please open an issue on GitHub for any issues related to this experimental feature.
+  checkpoint = torch.load(args.ckpt, map_location=device)
+[2026-10-01 23:53:10] Loaded model weights
+[2026-10-01 23:53:10] Starting inference on all test data...
+[2026-10-01 23:53:10] Debug shapes (first batch):
+[2026-10-01 23:53:10]   rcg: torch.Size([6, 16, 50, 32]) -> rcg_fmt: torch.Size([6, 16, 50, 32])
+[2026-10-01 23:53:10]   up_feat: torch.Size([6, 16, 50, 192]) -> up_flat: torch.Size([6, 800, 192])
+[2026-10-01 23:53:10]   Expected up_flat: [B, 128, 192] = [6, 128, 192]
+[2026-10-01 23:53:10] Debug statistics:
+[2026-10-01 23:53:10]   rcg range: [-12.9530, 12.8174], mean: -0.0000
+[2026-10-01 23:53:10]   up_flat range: [-4.3454, 4.6524], mean: -0.0743
+[2026-10-01 23:53:10]   ecg_p range: [-1.0000, 1.0000], mean: -0.6758
+[2026-10-01 23:53:22]   samples range: [-1.0000, 1.0000], mean: -0.0724
+[2026-10-01 23:53:22]   ecg_full range: [-1.0000, 1.0000], mean: -0.6758
+Traceback (most recent call last):
+  File "<frozen runpy>", line 198, in _run_module_as_main
+  File "<frozen runpy>", line 88, in _run_code
+  File "/home/shunya/research/rri-baselines/src/rri_baselines/mmjepa_official/launch.py", line 87, in <module>
+    main()
+  File "/home/shunya/research/rri-baselines/src/rri_baselines/mmjepa_official/launch.py", line 83, in main
+    exec(compile(src, str(path), "exec"), glb)
+  File "/home/shunya/research/external/mmJEPA-ECG/inference_from_train.py", line 290, in <module>
+    main(args)
+  File "/home/shunya/research/external/mmJEPA-ECG/inference_from_train.py", line 235, in main
+    pred_np = samples[:7].reshape(7, -1)[:, :512].cpu().numpy()
+              ^^^^^^^^^^^^^^^^^^^^^^^^^^
+RuntimeError: shape '[7, -1]' is invalid for input of size 3456

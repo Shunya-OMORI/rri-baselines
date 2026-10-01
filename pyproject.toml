@@ -17,6 +17,14 @@ dev = ["pytest>=8.0"]
 flops = [
     "floppy-tracker>=0.2.2",
 ]
+mmjepa-official = [
+    "einops>=0.8.2",
+    "matplotlib>=3.10.9",
+    "scikit-learn>=1.7.2",
+    "timm>=1.0.30",
+    "tqdm>=4.70.1",
+    "wandb>=0.30.0",
+]
 
 [build-system]
 requires = ["setuptools>=68"]

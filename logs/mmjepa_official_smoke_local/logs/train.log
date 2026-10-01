@@ -1,0 +1,78 @@
+
+==== 2026-10-01 23:48:54 /home/shunya/research/rri-baselines/.venv/bin/python -m rri_baselines.mmjepa_official.launch end2end_train.py --train-npy /home/shunya/research/rri-baselines/cache/mmjepa_official_smoke/data/fold00/train.npy --test-npy /home/shunya/research/rri-baselines/cache/mmjepa_official_smoke/data/fold00/val.npy --n-vars 50 --patch-len 32 --stride 32 --encoder-ckpt /home/shunya/research/rri-baselines/cache/mmjepa_official_smoke/runs/fold00_test1/pretrain/checkpoints/lr5e-04__20261001_234838/checkpoint_epoch_10.pth --enc-dim 192 --enc-layers 2 --enc-heads 8 --enc-ff 256 --epochs 30 --batch-size 8 --lr 5e-4 --warmup-steps 7750 --log-every 10 --ckpt-every 15 --results-dir /home/shunya/research/rri-baselines/cache/mmjepa_official_smoke/runs/fold00_test1/e2e --use-freq-loss --freq-loss-weight 0.005 --recon-loss-type l1 --recon-loss-weight 0.1 --seed 42
+[2026-10-01 23:49:00] Experiment dir: /home/shunya/research/rri-baselines/cache/mmjepa_official_smoke/runs/fold00_test1/e2e/000-e2e
+[2026-10-01 23:49:00] Enabled torch.compile
+/home/shunya/research/external/mmJEPA-ECG/end2end_train.py:151: FutureWarning: You are using `torch.load` with `weights_only=False` (the current default value), which uses the default pickle module implicitly. It is possible to construct malicious pickle data which will execute arbitrary code during unpickling (See https://github.com/pytorch/pytorch/blob/main/SECURITY.md#untrusted-models for more details). In a future release, the default value for `weights_only` will be flipped to `True`. This limits the functions that could be executed during unpickling. Arbitrary objects will no longer be allowed to be loaded via this mode unless they are explicitly allowlisted by the user via `torch.serialization.add_safe_globals`. We recommend you start setting `weights_only=True` for any use case where you don't have full control of the loaded file. Please open an issue on GitHub for any issues related to this experimental feature.
+  state_dict = torch.load(args.encoder_ckpt, map_location=device)['student_state_dict']
+[2026-10-01 23:49:00] Loaded encoder weights.
+[2026-10-01 23:49:00] Start training for 30 epochs …
+[2026-10-01 23:49:00] Epoch 1/30
+  0%|          | 0/2 [00:00<?, ?it/s] 50%|█████     | 1/2 [00:01<00:01,  1.31s/it]100%|██████████| 2/2 [00:02<00:00,  1.36s/it]100%|██████████| 2/2 [00:02<00:00,  1.35s/it]
+[2026-10-01 23:49:03] Epoch 2/30
+  0%|          | 0/2 [00:00<?, ?it/s] 50%|█████     | 1/2 [00:01<00:01,  1.47s/it]100%|██████████| 2/2 [00:02<00:00,  1.31s/it]100%|██████████| 2/2 [00:02<00:00,  1.34s/it]
+[2026-10-01 23:49:06] Epoch 3/30
+  0%|          | 0/2 [00:00<?, ?it/s] 50%|█████     | 1/2 [00:01<00:01,  1.00s/it]100%|██████████| 2/2 [00:01<00:00,  1.05it/s]100%|██████████| 2/2 [00:01<00:00,  1.04it/s]
+[2026-10-01 23:49:07] Epoch 4/30
+  0%|          | 0/2 [00:00<?, ?it/s] 50%|█████     | 1/2 [00:00<00:00,  1.06it/s]100%|██████████| 2/2 [00:02<00:00,  1.07s/it]100%|██████████| 2/2 [00:02<00:00,  1.05s/it]
+[2026-10-01 23:49:10] Epoch 5/30
+  0%|          | 0/2 [00:00<?, ?it/s] 50%|█████     | 1/2 [00:01<00:01,  1.22s/it][2026-10-01 23:49:12] step=10 | diff_loss=1.1474 | lr=8.47e-05 | 0.85 step/s
+100%|██████████| 2/2 [00:02<00:00,  1.13s/it]100%|██████████| 2/2 [00:02<00:00,  1.15s/it]
+[2026-10-01 23:49:12] Epoch 6/30
+  0%|          | 0/2 [00:00<?, ?it/s] 50%|█████     | 1/2 [00:01<00:01,  1.06s/it]100%|██████████| 2/2 [00:02<00:00,  1.03s/it]100%|██████████| 2/2 [00:02<00:00,  1.04s/it]
+[2026-10-01 23:49:14] Epoch 7/30
+  0%|          | 0/2 [00:00<?, ?it/s] 50%|█████     | 1/2 [00:01<00:01,  1.03s/it]100%|██████████| 2/2 [00:02<00:00,  1.05s/it]100%|██████████| 2/2 [00:02<00:00,  1.05s/it]
+[2026-10-01 23:49:16] Epoch 8/30
+  0%|          | 0/2 [00:00<?, ?it/s] 50%|█████     | 1/2 [00:01<00:01,  1.08s/it]100%|██████████| 2/2 [00:02<00:00,  1.11s/it]100%|██████████| 2/2 [00:02<00:00,  1.11s/it]
+[2026-10-01 23:49:18] Epoch 9/30
+  0%|          | 0/2 [00:00<?, ?it/s] 50%|█████     | 1/2 [00:01<00:01,  1.14s/it]100%|██████████| 2/2 [00:02<00:00,  1.11s/it]100%|██████████| 2/2 [00:02<00:00,  1.11s/it]
+[2026-10-01 23:49:20] Epoch 10/30
+  0%|          | 0/2 [00:00<?, ?it/s] 50%|█████     | 1/2 [00:01<00:01,  1.10s/it][2026-10-01 23:49:23] step=20 | diff_loss=1.1075 | lr=1.69e-04 | 0.93 step/s
+100%|██████████| 2/2 [00:02<00:00,  1.07s/it]100%|██████████| 2/2 [00:02<00:00,  1.07s/it]
+[2026-10-01 23:49:23] Epoch 11/30
+  0%|          | 0/2 [00:00<?, ?it/s] 50%|█████     | 1/2 [00:01<00:01,  1.13s/it]100%|██████████| 2/2 [00:02<00:00,  1.08s/it]100%|██████████| 2/2 [00:02<00:00,  1.09s/it]
+[2026-10-01 23:49:25] Epoch 12/30
+  0%|          | 0/2 [00:00<?, ?it/s] 50%|█████     | 1/2 [00:01<00:01,  1.09s/it]100%|██████████| 2/2 [00:02<00:00,  1.20s/it]100%|██████████| 2/2 [00:02<00:00,  1.18s/it]
+[2026-10-01 23:49:27] Epoch 13/30
+  0%|          | 0/2 [00:00<?, ?it/s] 50%|█████     | 1/2 [00:01<00:01,  1.05s/it]100%|██████████| 2/2 [00:02<00:00,  1.06s/it]100%|██████████| 2/2 [00:02<00:00,  1.06s/it]
+[2026-10-01 23:49:29] Epoch 14/30
+  0%|          | 0/2 [00:00<?, ?it/s] 50%|█████     | 1/2 [00:01<00:01,  1.07s/it]100%|██████████| 2/2 [00:02<00:00,  1.07s/it]100%|██████████| 2/2 [00:02<00:00,  1.07s/it]
+[2026-10-01 23:49:31] Epoch 15/30
+  0%|          | 0/2 [00:00<?, ?it/s] 50%|█████     | 1/2 [00:01<00:01,  1.02s/it][2026-10-01 23:49:33] step=30 | diff_loss=0.9268 | lr=2.54e-04 | 0.92 step/s
+100%|██████████| 2/2 [00:02<00:00,  1.01s/it]100%|██████████| 2/2 [00:02<00:00,  1.02s/it]
+[2026-10-01 23:49:34] Saved /home/shunya/research/rri-baselines/cache/mmjepa_official_smoke/runs/fold00_test1/e2e/000-e2e/checkpoints/epoch_015.pt
+[2026-10-01 23:49:34] Epoch 16/30
+  0%|          | 0/2 [00:00<?, ?it/s] 50%|█████     | 1/2 [00:01<00:01,  1.21s/it]100%|██████████| 2/2 [00:02<00:00,  1.15s/it]100%|██████████| 2/2 [00:02<00:00,  1.16s/it]
+[2026-10-01 23:49:36] Epoch 17/30
+  0%|          | 0/2 [00:00<?, ?it/s] 50%|█████     | 1/2 [00:01<00:01,  1.09s/it]100%|██████████| 2/2 [00:02<00:00,  1.05s/it]100%|██████████| 2/2 [00:02<00:00,  1.05s/it]
+[2026-10-01 23:49:38] Epoch 18/30
+  0%|          | 0/2 [00:00<?, ?it/s] 50%|█████     | 1/2 [00:01<00:01,  1.13s/it]100%|██████████| 2/2 [00:02<00:00,  1.09s/it]100%|██████████| 2/2 [00:02<00:00,  1.10s/it]
+[2026-10-01 23:49:40] Epoch 19/30
+  0%|          | 0/2 [00:00<?, ?it/s] 50%|█████     | 1/2 [00:01<00:01,  1.06s/it]100%|██████████| 2/2 [00:02<00:00,  1.01s/it]100%|██████████| 2/2 [00:02<00:00,  1.02s/it]
+[2026-10-01 23:49:42] Epoch 20/30
+  0%|          | 0/2 [00:00<?, ?it/s] 50%|█████     | 1/2 [00:01<00:01,  1.06s/it][2026-10-01 23:49:44] step=40 | diff_loss=0.6406 | lr=3.39e-04 | 0.91 step/s
+100%|██████████| 2/2 [00:02<00:00,  1.03s/it]100%|██████████| 2/2 [00:02<00:00,  1.04s/it]
+[2026-10-01 23:49:44] Epoch 21/30
+  0%|          | 0/2 [00:00<?, ?it/s] 50%|█████     | 1/2 [00:01<00:01,  1.05s/it]100%|██████████| 2/2 [00:02<00:00,  1.05s/it]100%|██████████| 2/2 [00:02<00:00,  1.05s/it]
+[2026-10-01 23:49:47] Epoch 22/30
+  0%|          | 0/2 [00:00<?, ?it/s] 50%|█████     | 1/2 [00:01<00:01,  1.06s/it]100%|██████████| 2/2 [00:02<00:00,  1.06s/it]100%|██████████| 2/2 [00:02<00:00,  1.06s/it]
+[2026-10-01 23:49:49] Epoch 23/30
+  0%|          | 0/2 [00:00<?, ?it/s] 50%|█████     | 1/2 [00:01<00:01,  1.00s/it]100%|██████████| 2/2 [00:02<00:00,  1.04s/it]100%|██████████| 2/2 [00:02<00:00,  1.04s/it]
+[2026-10-01 23:49:51] Epoch 24/30
+  0%|          | 0/2 [00:00<?, ?it/s] 50%|█████     | 1/2 [00:01<00:01,  1.03s/it]100%|██████████| 2/2 [00:02<00:00,  1.01s/it]100%|██████████| 2/2 [00:02<00:00,  1.01s/it]
+[2026-10-01 23:49:53] Epoch 25/30
+  0%|          | 0/2 [00:00<?, ?it/s] 50%|█████     | 1/2 [00:01<00:01,  1.05s/it][2026-10-01 23:49:55] step=50 | diff_loss=0.4102 | lr=4.24e-04 | 0.96 step/s
+100%|██████████| 2/2 [00:02<00:00,  1.03s/it]100%|██████████| 2/2 [00:02<00:00,  1.04s/it]
+[2026-10-01 23:49:55] Epoch 26/30
+  0%|          | 0/2 [00:00<?, ?it/s] 50%|█████     | 1/2 [00:01<00:01,  1.06s/it]100%|██████████| 2/2 [00:02<00:00,  1.06s/it]100%|██████████| 2/2 [00:02<00:00,  1.06s/it]
+[2026-10-01 23:49:57] Epoch 27/30
+  0%|          | 0/2 [00:00<?, ?it/s] 50%|█████     | 1/2 [00:01<00:01,  1.07s/it]100%|██████████| 2/2 [00:02<00:00,  1.01s/it]100%|██████████| 2/2 [00:02<00:00,  1.02s/it]
+[2026-10-01 23:49:59] Epoch 28/30
+  0%|          | 0/2 [00:00<?, ?it/s] 50%|█████     | 1/2 [00:01<00:01,  1.01s/it]100%|██████████| 2/2 [00:02<00:00,  1.00s/it]100%|██████████| 2/2 [00:02<00:00,  1.00s/it]
+[2026-10-01 23:50:01] Epoch 29/30
+  0%|          | 0/2 [00:00<?, ?it/s] 50%|█████     | 1/2 [00:01<00:01,  1.01s/it]100%|██████████| 2/2 [00:01<00:00,  1.03it/s]100%|██████████| 2/2 [00:01<00:00,  1.02it/s]
+[2026-10-01 23:50:03] Epoch 30/30
+  0%|          | 0/2 [00:00<?, ?it/s] 50%|█████     | 1/2 [00:01<00:01,  1.11s/it][2026-10-01 23:50:05] step=60 | diff_loss=0.3485 | lr=1.00e-06 | 0.97 step/s
+100%|██████████| 2/2 [00:02<00:00,  1.12s/it]100%|██████████| 2/2 [00:02<00:00,  1.11s/it]
+[2026-10-01 23:50:06] Saved /home/shunya/research/rri-baselines/cache/mmjepa_official_smoke/runs/fold00_test1/e2e/000-e2e/checkpoints/epoch_030.pt
+[2026-10-01 23:52:15] Eval MSE at epoch 30: 0.2553
+[2026-10-01 23:52:15] Done.

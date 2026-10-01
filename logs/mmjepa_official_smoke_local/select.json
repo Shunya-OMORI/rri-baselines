@@ -1,0 +1,111 @@
+{
+ "table": {
+  "epoch_015/pair_lin": 92.41856030510091,
+  "epoch_015/pair_mean": 77.1679290922895,
+  "epoch_015/triple_tri": 92.41856030510091,
+  "epoch_015/triple_mean": 358.83459575895614,
+  "epoch_030/pair_lin": 178.83459575895617,
+  "epoch_030/pair_mean": 163.83459575895617,
+  "epoch_030/triple_tri": 92.41856030510091,
+  "epoch_030/triple_mean": 92.41856030510091
+ },
+ "best": "epoch_015/pair_mean",
+ "detail": {
+  "epoch_015/pair_lin": {
+   "trial_mae": {
+    "3": 92.41856030510091
+   },
+   "rule_share": {
+    "center": 0.0,
+    "median": 0.0,
+    "train_mean": 1.0
+   }
+  },
+  "epoch_015/pair_mean": {
+   "trial_mae": {
+    "3": 77.1679290922895
+   },
+   "rule_share": {
+    "center": 0.3333333333333333,
+    "median": 0.0,
+    "train_mean": 0.6666666666666666
+   }
+  },
+  "epoch_015/triple_tri": {
+   "trial_mae": {
+    "3": 92.41856030510091
+   },
+   "rule_share": {
+    "center": 0.0,
+    "median": 0.0,
+    "train_mean": 1.0
+   }
+  },
+  "epoch_015/triple_mean": {
+   "trial_mae": {
+    "3": 358.83459575895614
+   },
+   "rule_share": {
+    "center": 0.3333333333333333,
+    "median": 0.0,
+    "train_mean": 0.6666666666666666
+   }
+  },
+  "epoch_030/pair_lin": {
+   "trial_mae": {
+    "3": 178.83459575895617
+   },
+   "rule_share": {
+    "center": 0.0,
+    "median": 0.3333333333333333,
+    "train_mean": 0.6666666666666666
+   }
+  },
+  "epoch_030/pair_mean": {
+   "trial_mae": {
+    "3": 163.83459575895617
+   },
+   "rule_share": {
+    "center": 0.3333333333333333,
+    "median": 0.0,
+    "train_mean": 0.6666666666666666
+   }
+  },
+  "epoch_030/triple_tri": {
+   "trial_mae": {
+    "3": 92.41856030510091
+   },
+   "rule_share": {
+    "center": 0.0,
+    "median": 0.0,
+    "train_mean": 1.0
+   }
+  },
+  "epoch_030/triple_mean": {
+   "trial_mae": {
+    "3": 92.41856030510091
+   },
+   "rule_share": {
+    "center": 0.0,
+    "median": 0.0,
+    "train_mean": 1.0
+   }
+  }
+ },
+ "val_subject": [
+  2
+ ],
+ "val_trials": [
+  3
+ ],
+ "val_stride": 5,
+ "n_val_windows": 3,
+ "generations_per_window": {
+  "pair_lin": 2,
+  "pair_mean": 2,
+  "triple_tri": 3,
+  "triple_mean": 3
+ },
+ "ddim_steps": 100,
+ "fallback_ms": 835.7518936384342
+}
