@@ -116,7 +116,8 @@ class ResNet1dRegressor(nn.Module):
         return self.head(self.layers(self.stem(x)).mean(dim=2)).squeeze(1)
 
 
-MODELS = {"tcn": TCNRegressor, "wavenet": WaveNetRegressor, "transformer": TransformerRegressor, "resnet1d": ResNet1dRegressor}
+# resnet1d は指示のない追加だったので比較には使わない(2026-10-01). 定義は残すが MODELS からは外す
+MODELS = {"tcn": TCNRegressor, "wavenet": WaveNetRegressor, "transformer": TransformerRegressor}
 
 
 if __name__ == "__main__":

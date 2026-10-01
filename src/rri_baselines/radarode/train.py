@@ -42,7 +42,8 @@ def build_trainer(run_dir: Path, epochs: int, loader_gen: torch.Generator):
     params = LibMTL_args.parse_args([])
     params.weighting, params.arch, params.optim, params.scheduler = "EW", "HPS", "sgd", "cos"
     params.lr, params.weight_decay, params.momentum, params.seed = 5e-3, 5e-4, 0.937, 42
-    params.eta_min, params.T_max, params.mode = params.lr * 0.01, epochs, "train"
+    # コサインの周期. 既定はエポック数. 公開実装の main.py は 200 エポックに対して T_max = 100(下がって戻る)
+    params.eta_min, params.T_max, params.mode = params.lr * 0.01, int(os.environ.get("RADARODE_TMAX", epochs)), "train"
     params.multi_input, params.rep_grad = False, False
     params.save_path, params.load_path = str(run_dir), None
     kwargs, optim_param, scheduler_param = prepare_args(params)
@@ -121,7 +122,7 @@ def main() -> None:
     trainer = build_trainer(run_dir, epochs, loader_gen)
     n_params = sum(p.numel() for p in trainer.model.parameters())
     (run_dir / "config.json").write_text(json.dumps({"fold": split, "weighting": "EW", "width": "cft", "ode": "on",
-                                                     "epochs": epochs, "sst": SST_VARIANT, "target": TARGET, "train_stride_samples": TRAIN_STRIDE,
+                                                     "epochs": epochs, "t_max": int(os.environ.get("RADARODE_TMAX", epochs)), "sst": SST_VARIANT, "target": TARGET, "train_stride_samples": TRAIN_STRIDE,
                                                      "n_train": len(train_set), "n_val": len(val_set),
                                                      "n_params": n_params}, indent=1))
     print(f"[{run_dir.name}] train {len(train_set)} / val {len(val_set)} 窓, {n_params:,} パラメータ, {epochs} エポック", flush=True)
