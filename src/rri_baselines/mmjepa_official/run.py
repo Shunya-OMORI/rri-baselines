@@ -31,7 +31,7 @@
   - λ_vt = 0.1(論文 式 (8), 図 6(b) の最良): 公式は重みなしの和. 公式の -hr_weight_a / -hr_weight_b(式 (10) の W_a, W_b)を
     0.1 倍(1 → 0.1, 2 → 0.2)にすると L_vt 全体が 0.1 倍になり, λ_vt = 0.1 と厳密に同じ
   - 周波数損失(論文 式 (14)(16)): --use-freq-loss で入れる(重み 0.005 は公式の既定)
-  - 事前学習 300 エポック(公式 docstring), DiT 300 エポック(記載なし. 50 ごとに保存して val で選ぶ)
+  - 事前学習 300 エポック(公式 docstring), DiT 200 エポック(論文・公式とも記載なし. radarODE-MTL の 200 に揃える(2026-10-02 ユーザ). 公式の 50 ごとの保存 4 個を val で選ぶ)
   - 推論は公式どおり checkpoint["model"](EMA でない)と DDIM 100 段
 """
 import argparse
@@ -62,7 +62,8 @@ GEN_OFFSETS = (0, 144, 288)
 class Config:
     pt_epochs: int = 300          # 公式 mmJEPA.py docstring「-epochs 300」. 論文図 6(a) は 50–200 で単調に改善
     pt_batch: int = 128
-    dit_epochs: int = 300         # 論文に記載なし(公式既定 1). 50 ごとの保存を val で選ぶ
+    dit_epochs: int = 200         # 論文・公式とも記載なし(公式既定 1). 300 は事前学習の docstring の流用で根拠がなかった.
+                                  # radarODE-MTL と同じ 200(2026-10-02 ユーザ). 公式の warmup 7750 段 ≈ 42 エポック(186 段/エポック)
     dit_batch: int = 128
     ckpt_every: int = 50          # 公式の既定
     warmup_steps: int = 7750      # 公式の既定(= 155 段 × 50 エポック)
