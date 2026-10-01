@@ -6,11 +6,11 @@
 | 名前 | 出典 | 実装 | 入出力の層 |
 |---|---|---|---|
 | tcn | Bai ら 2018, arXiv:1803.01271 | 公式 locuslab/TCN の tcn.py をそのまま(reference/tcn) | 出力は最後の時刻の特徴 → Linear(1)(出典の系列分類と同じ読み方. 因果畳み込みなので最後の時刻が窓全体を見る) |
-| wavenet | van den Oord ら 2016, arXiv:1609.03499 §2.1〜2.4 | 公式実装は TensorFlow 内製で非公開. 論文の図 4 のとおりに書く(因果膨張畳み込み・ゲート付き活性・残差・スキップ) | スキップの和 → ReLU → 1×1 → ReLU → 時間平均 → Linear(1)(論文の出力段の softmax を回帰に替える) |
+| wavenet | van den Oord ら 2016, arXiv:1609.03499 | AI-Huang/WaveNet の wavenet.py の WaveNetBlock をそのまま(reference/wavenet, ユーザ指定 2026-10-01) | 同リポジトリの上段の順(スキップの和 → ReLU → 1×1 → ReLU → 1×1 → 平坦化 → 全結合)で softmax 256 を RR 1 個に替える |
 | transformer | Vaswani ら 2017. 実装は PyTorch 公式 nn.TransformerEncoder | パッチ埋め込み(Conv1d, 100 ms = 20 標本) + 学習する位置埋め込み + [CLS] | [CLS] の特徴 → Linear(1) |
 | resnet1d | He ら 2016(ResNet-18 の BasicBlock を 1 次元に) | torchvision の BasicBlock の 2D を 1D に置き換え(段数・幅の比は ResNet-18) | 時間平均 → Linear(1) |
 
-受容野はどれも 4 s 窓(800 標本)を覆う(tcn: 核 7 × 6 段で 757 標本, wavenet: 膨張 1〜512 で 1,024 標本).
+受容野はどれも 4 s 窓(800 標本)を覆う(tcn: 核 7 × 6 段で 757 標本, wavenet: 核 3・膨張 1〜256 で 1,023 標本).
 幅は「パラメータ数が 10^5〜10^6 の範囲」に収まる出典の既定に近い値を 1 つだけ置き, 探索はしない(探索すると比較対象ごとに有利不利が出る).
 """
 from __future__ import annotations
@@ -22,8 +22,11 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 
-sys.path.insert(0, str(Path(__file__).resolve().parents[3] / "reference" / "tcn"))
+_REF = Path(__file__).resolve().parents[3] / "reference"
+sys.path.insert(0, str(_REF / "tcn"))
+sys.path.insert(0, str(_REF / "wavenet"))
 from tcn import TemporalConvNet  # noqa: E402  公式実装をそのまま import
+from wavenet import WaveNetBlock  # noqa: E402  AI-Huang/WaveNet をそのまま import
 
 IN_CH = 50
 
@@ -40,39 +43,25 @@ class TCNRegressor(nn.Module):
         return self.head(self.tcn(x)[:, :, -1]).squeeze(1)
 
 
-class WaveNetBlock(nn.Module):
-    """図 4 の 1 層: 因果膨張畳み込み → tanh × sigmoid のゲート → 1×1 で残差とスキップ."""
-
-    def __init__(self, res_ch: int, skip_ch: int, dilation: int, kernel_size: int = 2) -> None:
-        super().__init__()
-        self.pad = (kernel_size - 1) * dilation
-        self.filter = nn.Conv1d(res_ch, res_ch, kernel_size, dilation=dilation)
-        self.gate = nn.Conv1d(res_ch, res_ch, kernel_size, dilation=dilation)
-        self.res = nn.Conv1d(res_ch, res_ch, 1)
-        self.skip = nn.Conv1d(res_ch, skip_ch, 1)
-
-    def forward(self, x: torch.Tensor) -> tuple[torch.Tensor, torch.Tensor]:
-        xp = F.pad(x, (self.pad, 0))
-        z = torch.tanh(self.filter(xp)) * torch.sigmoid(self.gate(xp))
-        return x + self.res(z), self.skip(z)
-
-
 class WaveNetRegressor(nn.Module):
-    def __init__(self, res_ch: int = 32, skip_ch: int = 64, dilations: tuple[int, ...] = tuple(2 ** i for i in range(10))) -> None:
+    """AI-Huang/WaveNet(reference/wavenet)の WaveNetBlock をそのまま使い, 上段は同リポジトリの WaveNet.forward の順
+    (スキップの和 → ReLU → 1×1 → ReLU → 1×1 → 平坦化 → 全結合)で出力を RR 1 個にする.
+    filters・kernel_size・n はリポジトリに値が無いので, 核 3(偶数核だと同リポジトリの 'same' 詰めで長さが合わない)・
+    膨張 1〜256 の 9 段(受容野 1,023 標本 ≥ 800)・32 チャネルに置く."""
+
+    def __init__(self, filters: int = 32, kernel_size: int = 3, n: int = 9) -> None:
         super().__init__()
-        self.inp = nn.Conv1d(IN_CH, res_ch, 1)
-        self.blocks = nn.ModuleList(WaveNetBlock(res_ch, skip_ch, d) for d in dilations)
-        self.out1 = nn.Conv1d(skip_ch, skip_ch, 1)
-        self.out2 = nn.Conv1d(skip_ch, skip_ch, 1)
-        self.head = nn.Linear(skip_ch, 1)
+        self.conv1 = nn.Conv1d(IN_CH, filters, 1)
+        self.wavenet_block = WaveNetBlock(filters, filters, kernel_size, n)
+        self.conv2 = nn.Conv1d(1, 1, 1)
+        self.conv3 = nn.Conv1d(1, 1, 1)
+        self.fc = nn.Linear(800, 1)
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
-        h, skips = self.inp(x), 0
-        for b in self.blocks:
-            h, s = b(h)
-            skips = skips + s
-        y = F.relu(self.out2(F.relu(self.out1(F.relu(skips)))))
-        return self.head(y.mean(dim=2)).squeeze(1)
+        _, skips = self.wavenet_block(self.conv1(x))
+        y = F.relu(torch.stack(skips, dim=0).sum(dim=0))                      # (B, 1, 800)
+        y = self.conv3(F.relu(self.conv2(y)))
+        return self.fc(y.flatten(1)).squeeze(1)
 
 
 class TransformerRegressor(nn.Module):
