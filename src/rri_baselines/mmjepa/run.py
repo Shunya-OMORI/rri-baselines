@@ -31,7 +31,8 @@
   - 学習窓のずらし幅: 記載なし → 128 標本(1 エポック 120〜187 段. 公式 log-every=155 に近い)
   - レーダの正規化: 記載なし(公式の npy 名 "UD_RMS") → 512 標本ごと・点ごとの z スコア(窓の外の統計を使わない)
   - ECG の正規化: 記載なし(DDIM の clip が [-1, 1] 前提) → 512 標本ごとに最小・最大で [-1, 1]
-  - 4 s 窓(800 標本)への つなぎ方: 論文の入力は 512 標本 → single / pair / triple を val で選ぶ(下の STITCH)
+  - 4 s 窓(800 標本)への つなぎ方: 論文の入力は 512 標本 → pair / triple を val で選ぶ(下の STITCH). 窓中央の 512 標本だけを
+    使う形は「どれが窓中央の拍か」を人の手で絞ることになり問題が変わるので使わない(2026-10-01 ユーザ指摘)
 """
 import argparse
 import copy
@@ -74,7 +75,7 @@ EMA_DECAY = 0.9999
 # ---- 推論
 DDIM_STEPS = 100         # 公式 inference_from_train.py: create_diffusion(timestep_respacing="100"), eta=0.0
 GEN_OFFSETS = (0, 144, 288)          # 4 s 窓の中の 512 標本の生成位置(窓の先頭から)
-STITCH = {"single": (144,), "pair": (0, 288), "triple": (0, 144, 288)}
+STITCH = {"pair": (0, 288), "triple": (0, 144, 288)}
 VAL_STRIDE = 5                       # val の選択は評価窓 5 個おき(1 s おき. mmecg と同じ)
 
 
@@ -311,7 +312,7 @@ def generate(enc, dit, diff, rcg_seg, pos, seed: int, batch: int = 256) -> np.nd
 
 def stitch(segs: dict[int, np.ndarray], how: str) -> np.ndarray:
     """窓の中の生成 {先頭からの位置: (n, 512)} → (n, 800).
-    single: 中央 [144, 656) だけ(外は 0) / pair: [0,512) と [288,800) を重なり [288,512) で線形に切り替え /
+    pair: [0,512) と [288,800) を重なり [288,512) で線形に切り替え /
     triple: 3 本を三角窓の重みで重ね合わせて重みの和で割る."""
     offs = STITCH[how]
     n = len(segs[offs[0]])
@@ -350,7 +351,7 @@ def load_dit(path: Path, which: str = "model") -> HRCDiT:
 
 
 def select(index: int, out: Path | None = None, stride: int = VAL_STRIDE, limit: int | None = None) -> dict:
-    """val の参加者の評価窓 stride 個おきで, 保存したエポック × つなぎ方(single/pair/triple)を選ぶ."""
+    """val の参加者の評価窓 stride 個おきで, 保存したエポック × つなぎ方(pair/triple)を選ぶ."""
     fold = loso_folds()[index]
     out = out or run_dir(index)
     enc, diff = load_encoder(out / "encoder.pt"), Diffusion(respace=DDIM_STEPS)

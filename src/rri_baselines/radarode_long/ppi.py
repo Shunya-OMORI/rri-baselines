@@ -9,8 +9,9 @@
 
 論文で決まらない点(学習なしなので, 候補をすべて計算しておき val で選ぶ):
   - 帯域 BAND: [1, 25] Hz(p.6・p.9 の本文. 本線)/ 0.72〜100 Hz(著者の MMECG_to_SST.m が実際に取る帯域)
-  - l_seg: 2 / 3 / 4 s(論文は値を書いていない. 窓が 4 s なので 4 s 以下). l_step は中央の区間が必ず作れる 0.5 s に固定
-    (窓の中央 RR に使うのは中央の区間 1 つなので, l_step は値に効かない)
+  - l_seg: 選ぶ候補は 4 s(窓全体)だけ. 2 / 3 s の区間を窓の中央に置くと「どれが窓中央の拍か」を人の手で
+    絞ることになり, 窓全体から自分で見分けている他の手法と問題が変わる(2026-10-01 ユーザ指摘). キャッシュは 2 / 3 / 4 s を
+    持つが, 選択には使わない(SELECTABLE_LSEGS). 4 s では区間 = 窓なので l_step は値に効かない
   - "biopeaks": 論文の引用 [39] は NeuroKit2. NeuroKit2 には biopeaks という関数がない. biopeaks(Brammer 2020)由来の
     検出器は ECG の "neurokit"(勾配の閾値)と PPG の "elgendi"(脈波の極大)の 2 つなので両方を候補にする
   - h = n^(-1/5) の単位: 秒("sec", 文字どおり)/ 標本("sample", 5 ms 単位で文字どおり)/ n^(-1/5)·σ("scott", scipy の既定)
@@ -37,7 +38,8 @@ REPO = Path(__file__).resolve().parents[3]
 CACHE = Path(os.environ.get("RADARODE_LONG_KDE", REPO / "cache/radarode_long/kde"))
 RESULTS = REPO / "results/radarode_long"
 BANDS = ("paper", "author")
-LSEGS = (2.0, 3.0, 4.0)
+LSEGS = (2.0, 3.0, 4.0)                 # キャッシュの軸(計算済み)
+SELECTABLE_LSEGS = (4.0,)               # 選択に使う候補. 窓の中央に置いた短い区間は使わない(上の docstring)
 DETECTORS = ("neurokit", "elgendi")
 BWS = ("sec", "sample", "scott", "mean")
 GRID_S = np.arange(40, 401) / FS                  # PPI の探索範囲 0.2〜2.0 s. 粗い格子は 1 標本(5 ms)刻み, 最大の近くを 1 ms で詰める
@@ -198,7 +200,8 @@ def load_cache(trial_id: int) -> dict:
 
 
 def config_names() -> list[tuple]:
-    return list(product(range(len(BANDS)), range(len(LSEGS)), range(len(DETECTORS)), range(len(BWS))))
+    lsegs = [LSEGS.index(v) for v in SELECTABLE_LSEGS]
+    return list(product(range(len(BANDS)), lsegs, range(len(DETECTORS)), range(len(BWS))))
 
 
 def label(cfg: tuple) -> str:
