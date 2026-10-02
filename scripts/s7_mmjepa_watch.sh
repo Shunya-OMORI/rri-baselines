@@ -60,6 +60,7 @@ launch() {   # $1 名前, $2 GPU, $3 コマンド
 
 fold_dir() { ls -d "$RUNS"/fold$(printf %02d "$1")_test* 2>/dev/null | head -1; }
 
+below=0
 log "見張り開始(自分の GPU の上限 $MAX_MINE 枚, 分割 $FOLDS)"
 while :; do
     remaining=0
@@ -80,10 +81,13 @@ while :; do
     next=""; for i in $FOLDS; do [ -e "$ST/run_f$i" ] || { next=$i; break; }; done
     if [ -n "$next" ]; then
         mine=$(my_gpus)
-        if [ "$mine" -lt "$MAX_MINE" ]; then
+        # 自分の別ジョブ(radarODE-MTL)は再開のために一瞬 GPU を離れる(10-02 19:10, 1 分弱). 2 回続けて(5 分以上)上限未満のときだけ投入する
+        if [ "$mine" -lt "$MAX_MINE" ]; then below=$((below + 1)); else below=0; fi
+        if [ "$below" -ge 2 ]; then
             g=$(free_gpu)
             if [ -n "$g" ]; then
                 launch "f$next" "$g" ".venv/bin/python -m rri_baselines.mmjepa_official.run all $next --device cuda:0 && .venv/bin/python -m rri_baselines.mmjepa_official.run cleanup $next"
+                below=0
             fi
         fi
     fi
