@@ -64,7 +64,8 @@ def run_env(device: str) -> dict:
     - CUDA_VISIBLE_DEVICES: device が cpu のときは空にして GPU に触れない
     """
     env = dict(os.environ)
-    env.update(PYTHONDONTWRITEBYTECODE="1", WANDB_MODE="disabled", WANDB_SILENT="true", MPLBACKEND="Agg",
+    # PYTHONUNBUFFERED: s7 の NFS は st_blksize が 1 MB で, 標準出力をファイルに向けると 1 MB たまるまで書かれない(各エポックの損失が終わるまで見えない)
+    env.update(PYTHONDONTWRITEBYTECODE="1", PYTHONUNBUFFERED="1", WANDB_MODE="disabled", WANDB_SILENT="true", MPLBACKEND="Agg",
                MMJEPA_DEVICE=device,
                PYTHONPATH=os.pathsep.join([str(REPO / "src"), *filter(None, [os.environ.get("PYTHONPATH")])]))
     if os.environ.get("MMJEPA_COMPILE") != "1":
