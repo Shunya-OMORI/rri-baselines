@@ -25,6 +25,7 @@ from rri_baselines.radarode import sst as _low
 from rri_baselines.radarode import wsst as _wsst
 
 SST_VARIANT = os.environ.get("RADARODE_SST", "wsst")
+DATA_DEVICE = os.environ.get("RADARODE_DATA_DEVICE", "cpu")   # cuda: SST を GPU に常駐させる(ホストの RAM 枯渇対策. 2026-10-03. 値は cpu とビット一致)
 TARGET = os.environ.get("RADARODE_TARGET", "center")
 CACHE = {"low": _low.CACHE, "wsst": _wsst.CACHE}[SST_VARIANT]
 PPI_LEN, SHAPE_LEN, SST_FRAMES = 260, 200, 120
@@ -55,6 +56,8 @@ class CenterBeatWindows(Dataset):
         for t in trial_ids:
             tr = load_trial(t)
             sst = np.load(CACHE / f"trial{t}.npy", mmap_mode="r")
+            if DATA_DEVICE != "cpu":
+                sst = torch.from_numpy(np.ascontiguousarray(sst)).to(DATA_DEVICE)
             self.trials[t] = (sst, tr["ecg"].astype(np.float32), tr["peaks"].astype(np.int64))
             n_frames = sst.shape[-1]
             for s in range(0, len(tr["rcg_z"]) - WINDOW_LEN + 1, stride):
@@ -71,9 +74,15 @@ class CenterBeatWindows(Dataset):
         t, s = self.items[i]
         sst, ecg, peaks = self.trials[t]
         f0 = s * 30 // FS
-        x = np.asarray(sst[:, :, f0:f0 + SST_FRAMES], dtype=np.float32)
-        lo, hi = x.min(axis=(1, 2), keepdims=True), x.max(axis=(1, 2), keepdims=True)
-        x = torch.from_numpy((x - lo) / np.where(hi - lo < 1e-12, 1.0, hi - lo))        # 窓ごと・点ごとに [0, 1](著者の sst_norm_01)
+        if isinstance(sst, torch.Tensor):
+            x = sst[:, :, f0:f0 + SST_FRAMES]
+            lo, hi = x.amin(dim=(1, 2), keepdim=True), x.amax(dim=(1, 2), keepdim=True)
+            d = hi - lo
+            x = (x - lo) / torch.where(d < 1e-12, torch.ones_like(d), d)
+        else:
+            x = np.asarray(sst[:, :, f0:f0 + SST_FRAMES], dtype=np.float32)
+            lo, hi = x.min(axis=(1, 2), keepdims=True), x.max(axis=(1, 2), keepdims=True)
+            x = torch.from_numpy((x - lo) / np.where(hi - lo < 1e-12, 1.0, hi - lo))        # 窓ごと・点ごとに [0, 1](著者の sst_norm_01)
         k = target_index(peaks, s)
         piece = ecg[peaks[k - 1]:peaks[k]] if 0 < k < len(peaks) else ecg[s:s + 1]
         ppi = np.full(PPI_LEN, -10.0, dtype=np.float32)
