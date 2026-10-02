@@ -65,7 +65,7 @@ def build_trainer(run_dir: Path, epochs: int, loader_gen: torch.Generator):
 @torch.no_grad()
 def predict(trainer, trial_id: int, batch: int = 64) -> np.ndarray:
     ds = CenterBeatWindows([trial_id], stride=40, labeled_only=False)
-    loader = torch.utils.data.DataLoader(ds, batch_size=batch, shuffle=False, num_workers=4)
+    loader = torch.utils.data.DataLoader(ds, batch_size=batch, shuffle=False, num_workers=int(os.environ.get("RADARODE_WORKERS", "4")))
     trainer.model.eval()
     out = []
     for x, _ in loader:
@@ -118,7 +118,8 @@ def main() -> None:
     train_set = CenterBeatWindows(train_trials, TRAIN_STRIDE)
     val_set = CenterBeatWindows(val_trials, TRAIN_STRIDE)
     mk = lambda ds, sh, g=None: torch.utils.data.DataLoader(  # noqa: E731
-        ds, batch_size=32, shuffle=sh, num_workers=int(os.environ.get("RADARODE_WORKERS", "6")), pin_memory=True, drop_last=sh, generator=g)
+        ds, batch_size=32, shuffle=sh, num_workers=int(os.environ.get("RADARODE_WORKERS", "6")),
+        pin_memory=int(os.environ.get("RADARODE_WORKERS", "6")) > 0, drop_last=sh, generator=g)  # WORKERS=0: 本体だけで読む(RAM 節約. 2026-10-03)
     trainer = build_trainer(run_dir, epochs, loader_gen)
     n_params = sum(p.numel() for p in trainer.model.parameters())
     (run_dir / "config.json").write_text(json.dumps({"fold": split, "weighting": "EW", "width": "cft", "ode": "on",
