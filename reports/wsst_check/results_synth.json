@@ -1,0 +1,154 @@
+{
+ "case": "synth",
+ "stage1_scale_ours_over_matlab": 1.386294361119891,
+ "stage1_expected_scale_2ln2": 1.3862943611198906,
+ "stage1_freq_vector": {
+  "max_abs": 0.0,
+  "mean_abs": 0.0,
+  "rel_to_ref_max": 0.0,
+  "corr": 1.0
+ },
+ "stage1_freq_ml_rows_70_140": [
+  0.7245779825078026,
+  99.99999999999997
+ ],
+ "stage1_complex_sst": {
+  "max_abs": 6.6175238745914335e-15,
+  "rel_to_ref_max": 7.061057288367327e-15,
+  "n_pixels_rel_gt_1e-9": 0,
+  "support_equal": true
+ },
+ "stage1_matlab_threshold_stats": {
+  "phase_nan": 0,
+  "amp_below_thr": 0,
+  "row_out": 55384
+ },
+ "stage2_abs_half": {
+  "max_abs": 0.0,
+  "mean_abs": 0.0,
+  "rel_to_ref_max": 0.0,
+  "corr": 1.0
+ },
+ "stage3_resample_poly_vs_matlab": {
+  "max_abs": 1.5543122344752192e-15,
+  "mean_abs": 9.864174182649554e-18,
+  "rel_to_ref_max": 1.5543122344752192e-15,
+  "corr": 0.9999999999999999
+ },
+ "stage3_out_len": [
+  5326,
+  5326
+ ],
+ "stage4_final_ours_same_input": {
+  "max_abs": 2.9801276557606116e-08,
+  "mean_abs": 1.2259270364946548e-09,
+  "rel_to_ref_max": 2.9801276557606116e-08,
+  "corr": 1.0
+ },
+ "stage4_final_ours_real_input": {
+  "max_abs": 0.0020790507713916648,
+  "mean_abs": 6.3969271171449e-08,
+  "rel_to_ref_max": 0.0020790507713916648,
+  "corr": 0.9999999987018725
+ },
+ "stage5_windows_ours_same_input": {
+  "n_windows": 217,
+  "max_abs_worst": 6.052986978311026e-08,
+  "max_abs_median": 4.498728001234298e-08,
+  "mean_abs_mean": 1.4677069817962592e-09,
+  "corr_min": 0.9999999999999981,
+  "corr_median": 0.9999999999999997
+ },
+ "stage5_windows_ours_real_input": {
+  "n_windows": 217,
+  "max_abs_worst": 0.0021588472258022955,
+  "max_abs_median": 1.8209553938330902e-07,
+  "mean_abs_mean": 6.758248735346851e-08,
+  "corr_min": 0.9999999607883301,
+  "corr_median": 0.9999999999999969
+ },
+ "stage5_windows_ours_real_input_stride40": {
+  "n_windows": 868,
+  "max_abs_worst": 0.0021588472258022955,
+  "max_abs_median": 1.8291077322207805e-07,
+  "mean_abs_mean": 6.708294119135034e-08,
+  "corr_min": 0.9999999603130834,
+  "corr_median": 0.999999999999997
+ },
+ "sens_extend_true_trial": {
+  "max_abs": 0.4946816952876919,
+  "mean_abs": 0.0004760982190482968,
+  "rel_to_ref_max": 0.4946816952876919,
+  "corr": 0.9973965870506405
+ },
+ "sens_extend_true_windows": {
+  "n_windows": 217,
+  "max_abs_worst": 0.4758801298167495,
+  "max_abs_median": 0.0015948387030469205,
+  "mean_abs_mean": 0.00013359934552944726,
+  "corr_min": 0.9275038012872732,
+  "corr_median": 0.9999999319768877
+ },
+ "sens_extend_true_edge": {
+  "first_2s_trial": {
+   "max_abs": 0.42970534341492655,
+   "mean_abs": 0.019257594523695402,
+   "rel_to_ref_max": 0.5483017314219865,
+   "corr": 0.7291415942046799
+  },
+  "middle_trial": {
+   "max_abs": 0.1341651028058536,
+   "mean_abs": 2.3914448593754897e-05,
+   "rel_to_ref_max": 0.1341651028058536,
+   "corr": 0.9999842460144633
+  },
+  "last_2s_trial": {
+   "max_abs": 0.4946816952876919,
+   "mean_abs": 0.02092908039750694,
+   "rel_to_ref_max": 0.6039457272675177,
+   "corr": 0.7455393585944358
+  }
+ },
+ "sens_resample_noreduce_30_200_trial": {
+  "max_abs": 7.771561172376096e-16,
+  "mean_abs": 9.256733079734773e-18,
+  "rel_to_ref_max": 7.771561172376096e-16,
+  "corr": 1.0
+ },
+ "sens_resample_noreduce_30_200_windows": {
+  "n_windows": 217,
+  "max_abs_worst": 7.771561172376096e-16,
+  "max_abs_median": 5.551115123125783e-16,
+  "mean_abs_mean": 1.183612430947925e-17,
+  "corr_min": 0.9999999999999997,
+  "corr_median": 1.0
+ },
+ "sens_resample_fft_trial": {
+  "max_abs": 0.11786933980926698,
+  "mean_abs": 0.0024208653176234084,
+  "rel_to_ref_max": 0.11786933980926698,
+  "corr": 0.999580865058245
+ },
+ "sens_resample_fft_windows": {
+  "n_windows": 217,
+  "max_abs_worst": 0.12141853222508175,
+  "max_abs_median": 0.034583883627453765,
+  "mean_abs_mean": 0.0034639958684284816,
+  "corr_min": 0.9985763533378011,
+  "corr_median": 0.9997233013864565
+ },
+ "sens_resample_scipy_poly_trial": {
+  "max_abs": 1.4432899320127035e-15,
+  "mean_abs": 2.879061988855261e-17,
+  "rel_to_ref_max": 1.4432899320127035e-15,
+  "corr": 1.0
+ },
+ "sens_resample_scipy_poly_windows": {
+  "n_windows": 217,
+  "max_abs_worst": 2.3314683517128287e-15,
+  "max_abs_median": 1.3322676295501878e-15,
+  "mean_abs_mean": 2.3030517938149436e-17,
+  "corr_min": 0.9999999999999997,
+  "corr_median": 1.0
+ }
+}
