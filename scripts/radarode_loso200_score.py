@@ -18,7 +18,9 @@ for fold in loso_folds():
     if not f.exists():
         print("欠け:", f.parent.name); continue
     z = np.load(f)
-    epochs[fold.test[0]] = int(z["best_epoch"]) if "best_epoch" in z.files else None
+    be = f.parent / "best_epoch.json"
+    epochs[fold.test[0]] = (int(z["best_epoch"]) if "best_epoch" in z.files
+                            else json.loads(be.read_text())["epoch"] if be.exists() else None)
     preds.update({t: z[f"trial{t}_pred_ms"] for t in trials_of(fold.test)})
 r_loss = score(preds)                                             # 損失整合の読み出し(argmax+1), 0.2 s 刻み全窓
 r_pub = score({t: v - 1000.0 / FS * 2 for t, v in preds.items()})  # 公開式(argmax を L+1 と比較 = 読み出しが 2 標本短い)
