@@ -7,8 +7,11 @@
            DDPM 1000 段で val の 1 バッチの MSE)は公式のまま走る(選択には使わない)
   select   保存した DiT の重み × 4 s 窓のつなぎ方 を, val の参加者の評価窓(1 s おき)の RR 誤差で選ぶ.
            生成は公式 inference_from_train.py(DDIM 100 段・η=0)に 4 s 窓の中の 512 標本の区間を npy で渡して行う
-  test     選んだ (重み, つなぎ方) で test の参加者の全評価窓(0.2 s おき)を予測 → predictions.npz
-  cleanup  大きな中間物(書き出しの npy, 選ばなかった重み)を消す
+  test     選んだ (重み, つなぎ方) で test の参加者の全評価窓(0.2 s おき)を予測 → predictions.npz(報告の本線)
+  options  同じ重み(val で選んだもの)のまま, つなぎ方 5 通りすべての test の予測 → predictions_options.npz・options.json
+           (2026-10-11 ユーザ: 模型が同じで出力のさせ方だけを val で選ぶときは, test でも全選択肢の値を残す.
+            test の生成を足りない区間だけ足すので, 選んだつなぎ方の値は predictions.npz と同じになる)
+  cleanup  書き出しの npy(作り直せる)だけを消す. 重みはすべて残す(2026-10-11 ユーザ: 再学習に数日かかるため)
 
 途中の結果(2026-10-02 ユーザ): DiT は 200 エポックのスケジュール(warmup 7750 段 → コサイン)のまま最後まで回し, 10 エポックごとに
 保存する. 学習を止めずに `select --upto 20` → `test --upto 20` を走らせると, 20 エポックまでの重みから val で選んだ test の
@@ -16,7 +19,7 @@
 途中なので, 「200 エポックの学習の途中の重み」であって「20 エポックで学習し切った模型」ではない. 最終(--upto なし)は全保存から選ぶ.
 
   .venv/bin/python -m rri_baselines.mmjepa_official.run all <分割> [--device cuda:0]
-  .venv/bin/python -m rri_baselines.mmjepa_official.run <export|pretrain|train|select|test|cleanup> <分割>
+  .venv/bin/python -m rri_baselines.mmjepa_official.run <export|pretrain|train|select|test|options|cleanup> <分割>
   .venv/bin/python -m rri_baselines.mmjepa_official.run evaluate [--upto E] # 11 分割を採点 → results/mmjepa_official/summary[_uptoE].json
   .venv/bin/python -m rri_baselines.mmjepa_official.run <select|test> <分割> --upto 20   # 学習中に途中の結果を出す
   .venv/bin/python -m rri_baselines.mmjepa_official.run smoke <分割>      # 極小設定で CPU の通し確認
@@ -95,7 +98,7 @@ class Config:
 
 FULL = Config()
 SMOKE = Config(pt_epochs=10, pt_batch=8, dit_epochs=30, dit_batch=8, ckpt_every=15, log_every=10,
-               train_limit=16, valnpy_limit=8, val_win_limit=3, val_trials=1, test_win_limit=4, test_trials=1,
+               train_limit=16, valnpy_limit=8, val_win_limit=3, val_trials=1, test_win_limit=8, test_trials=1,
                runs=str(REPO / "cache/mmjepa_official_smoke/runs"), cache=str(REPO / "cache/mmjepa_official_smoke/data"))
 
 
@@ -382,20 +385,62 @@ def stage_test(cfg: Config, index: int, device: str, upto: int | None = None) ->
               flush=True)
 
 
-def stage_cleanup(cfg: Config, index: int) -> None:
-    """書き出しの npy と, 選ばなかった DiT の重み・途中の事前学習の重みを消す(選んだ重みと最終エンコーダは残す)."""
+def stage_options(cfg: Config, index: int, device: str, upto: int | None = None) -> dict:
+    """val で選んだ重みのまま, つなぎ方 5 通りすべてで test を予測する(選択は変えない. 選択肢ごとの値を残すだけ).
+    区間の生成は stage_test のもの(gen.npz)を使い回し, 足りない開始位置の区間だけを生成する. DDIM は η=0 でも初期雑音が
+    バッチの並びで変わるので, 生成し直さないことで選んだつなぎ方の値が predictions.npz と一致する."""
+    out = fold_dir(cfg, index)
+    f = out / f"options{suffix(upto)}.json"
+    if f.exists():
+        return json.loads(f.read_text())
+    stage_test(cfg, index, device, upto)
+    sel = json.loads((out / f"select{suffix(upto)}.json").read_text())
+    ck_name, chosen = sel["best"].split("/")
+    ck = next(c for c in dit_ckpts(out) if c.stem == ck_name)
+    fold = loso_folds()[index]
+    test_trials = trials_of(fold.test)[:cfg.test_trials]
+    enc = encoder_ckpt(cfg, out)
+    rows_main, _ = infer_rows(cfg, test_trials, 1, STITCH[chosen], cfg.test_win_limit)
+    gens = generate(cfg, out, f"test/{ck_name}_{chosen}", rows_main, enc, ck, device)   # stage_test の gen.npz を読むだけ
+    rows, truth = infer_rows(cfg, test_trials, 1, GEN_OFFSETS, cfg.test_win_limit)
+    missing = [r for r in rows if tuple(r) not in gens]
+    if missing:
+        gens.update(generate(cfg, out, f"test/{ck_name}_{chosen}_extra", missing, enc, ck, device))
+    fallback = train_mean_rr(trials_of(fold.train))
+    main = np.load(out / f"predictions{suffix(upto)}.npz")
+    arrays, table = {}, {}
+    for how in STITCH:
+        p = window_preds(gens, truth, how, fallback)
+        for t in p:
+            arrays[f"pred_{how}_{t}"] = np.array([v for v, _ in p[t]])
+            arrays[f"rule_{how}_{t}"] = np.array([r for _, r in p[t]])
+        if how == chosen:   # 選んだつなぎ方は本線の予測と一致するはず(生成を使い回しているため)
+            for t in p:
+                assert np.array_equal(arrays[f"pred_{how}_{t}"], main[f"pred_{t}"], equal_nan=True), (how, t)
+        err = {t: float(np.nanmean(np.where(np.isfinite(truth[t][1]), np.abs(arrays[f"pred_{how}_{t}"] - truth[t][1]), np.nan)))
+               for t in p}
+        table[how] = {"test_trial_mae": err, "test_mae": float(np.mean(list(err.values()))),
+                      "val_mae": sel["table"][f"{ck_name}/{how}"], "chosen": how == chosen}
+    np.savez(out / f"predictions_options{suffix(upto)}.npz", **arrays, checkpoint=ck_name, chosen=chosen)
+    res = {"checkpoint": ck_name, "chosen": chosen, "options": table,
+           "note": "重みは val で選んだもののまま. test の値は選択肢ごとの参考で, 報告の本線は chosen の値(= predictions.npz)"}
+    f.write_text(json.dumps(res, indent=1, ensure_ascii=False))
+    print(f"[options fold{index}] {ck_name}: " + ", ".join(f"{h} val {v['val_mae']:.2f} / test {v['test_mae']:.2f}"
+                                                           + ("*" if v["chosen"] else "") for h, v in table.items()), flush=True)
+    return res
+
+
+def stage_cleanup(cfg: Config, index: int, device: str | None = None) -> None:
+    """書き出しの npy(試行から作り直せる)だけを消す. 重み(DiT の全保存・事前学習の全エポック)と生成(gen.npz)は消さない
+    (2026-10-11 ユーザ: 再学習に数日かかるので重みは大事に残す). 選択肢ごとの test(options)が無ければ先に作る
+    (options の段を入れる前に起動した分割は run_all で options を通らないため)."""
     out = fold_dir(cfg, index)
     if not (out / "predictions.npz").exists():
         raise RuntimeError("test の予測がまだ無いので消さない")
+    if not (out / "options.json").exists():
+        stage_options(cfg, index, device or os.environ.get("MMJEPA_DEVICE", "cuda:0"))
     shutil.rmtree(data_dir(cfg, index), ignore_errors=True)
     shutil.rmtree(Path(cfg.cache) / out.name, ignore_errors=True)
-    keep = {json.loads(f.read_text())["best"].split("/")[0] for f in out.glob("select*.json")}   # 最終と途中(--upto)の両方
-    for c in dit_ckpts(out):
-        if c.stem not in keep:
-            c.unlink()
-    for c in (out / "pretrain/checkpoints").glob("*/checkpoint_epoch_*.pth"):
-        if c.name != f"checkpoint_epoch_{cfg.pt_epochs}.pth":
-            c.unlink()
     for name in ("train_UD_RMS_all.npy", "test_UD_RMS_all.npy"):
         (out / "pretrain/data" / name).unlink(missing_ok=True)
 
@@ -423,7 +468,9 @@ def run_all(cfg: Config, index: int, device: str) -> None:
     t4 = time.time()
     stage_test(cfg, index, device)
     t5 = time.time()
-    times = {"export": t1 - t0, "pretrain": t2 - t1, "train": t3 - t2, "select": t4 - t3, "test": t5 - t4}
+    stage_options(cfg, index, device)
+    t6 = time.time()
+    times = {"export": t1 - t0, "pretrain": t2 - t1, "train": t3 - t2, "select": t4 - t3, "test": t5 - t4, "options": t6 - t5}
     (out / "times.json").write_text(json.dumps(times, indent=1))
     print(f"[fold{index}] 時間 " + ", ".join(f"{k} {v / 60:.1f} 分" for k, v in times.items()), flush=True)
 
@@ -436,9 +483,20 @@ def evaluate(cfg: Config, upto: int | None = None) -> dict:
             with np.load(f) as z:
                 preds.update({int(k[5:]): z[k] for k in z.files if k.startswith("pred_")})
     res = score(preds)
+    # 選択肢(つなぎ方)ごとの test. 重みは各分割で val が選んだもの. 報告の本線は上の res(各分割で val が選んだつなぎ方)
+    opts = {h: {} for h in STITCH}
+    for d in sorted(Path(cfg.runs).glob("fold*_test*")):
+        f = d / f"predictions_options{suffix(upto)}.npz"
+        if f.exists():
+            with np.load(f) as z:
+                for h in STITCH:
+                    opts[h].update({int(k[len(f"pred_{h}_"):]): z[k] for k in z.files if k.startswith(f"pred_{h}_")})
+    res["options"] = {h: score(p) for h, p in opts.items() if p}
     out = REPO / "results/mmjepa_official"
     out.mkdir(parents=True, exist_ok=True)
     (out / f"summary{suffix(upto)}.json").write_text(json.dumps(res, indent=1, ensure_ascii=False))
+    for h, r in res["options"].items():
+        print(f"  つなぎ方 {h}: {r['mae_ms']:.2f} ms ({len(r['subject_mae_ms'])} 名)")
     print(f"mm-JEPA-ECG(公式実装{'' if upto is None else f', {upto} エポックまで'}): {res['mae_ms']:.2f} ms "
           f"({len(res['subject_mae_ms'])} 名)")
     return res
@@ -488,7 +546,7 @@ export PYTHONDONTWRITEBYTECODE=1 MMJEPA_DEVICE=cuda:0 MMJEPA_MAX_WORKERS=1
 
 if __name__ == "__main__":
     ap = argparse.ArgumentParser()
-    ap.add_argument("cmd", choices=["all", "export", "pretrain", "train", "select", "test", "cleanup", "evaluate",
+    ap.add_argument("cmd", choices=["all", "export", "pretrain", "train", "select", "test", "options", "cleanup", "evaluate",
                                     "smoke", "queue"])
     ap.add_argument("folds", nargs="*", type=int)
     ap.add_argument("--device", default=os.environ.get("MMJEPA_DEVICE", "cuda:0"))
@@ -506,4 +564,5 @@ if __name__ == "__main__":
             {"all": lambda: run_all(FULL, i, a.device), "export": lambda: stage_export(FULL, i),
              "pretrain": lambda: stage_pretrain(FULL, i, a.device), "train": lambda: stage_train(FULL, i, a.device),
              "select": lambda: stage_select(FULL, i, a.device, a.upto), "test": lambda: stage_test(FULL, i, a.device, a.upto),
-             "cleanup": lambda: stage_cleanup(FULL, i)}[a.cmd]()
+             "options": lambda: stage_options(FULL, i, a.device, a.upto),
+             "cleanup": lambda: stage_cleanup(FULL, i, a.device)}[a.cmd]()

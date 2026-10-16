@@ -10,6 +10,10 @@
 #   setsid nohup bash ~/rri-baselines/scripts/s7_mmjepa_watch.sh > ~/jobs/mmjepa_watch/watch.log 2>&1 < /dev/null &
 set -u
 MAX_MINE=2
+# 使ってよい GPU(2026-10-03 共通規則: 基本は 0・1. 2・3 はユーザが占有を認めたときだけ ALLOWED_GPUS="0 1 2 3")
+ALLOWED_GPUS="${ALLOWED_GPUS:-0 1}"
+# 20 エポックの途中の結果(mid)を出すか. 2026-10-10 から本番の 200 エポックだけ回すので既定は出さない
+MID="${MID:-0}"
 FOLDS="0 1 2 3 4 5 6 7 8 9 10"
 ST=$HOME/jobs/mmjepa_watch
 REPO=$HOME/rri-baselines
@@ -43,6 +47,7 @@ free_gpu() {
     while IFS=', ' read -r idx uuid used total util; do
         echo "$used_uuids" | grep -qx "$uuid" && continue
         case "$reserved" in *" $idx "*) continue ;; esac
+        case " $ALLOWED_GPUS " in *" $idx "*) ;; *) continue ;; esac
         [ "$used" -ge 1000 ] && continue; [ "$util" -ge 10 ] && continue
         [ $((total - used)) -ge 20000 ] || continue
         echo "$((total - used)) $idx"
@@ -71,7 +76,7 @@ while :; do
         fi
         # 途中の結果: DiT の epoch_020.pt ができたら, その分割の GPU で select/test --upto 20
         fd=$(fold_dir "$i")
-        if [ -n "$fd" ] && [ ! -e "$ST/run_mid$i" ] && ls "$fd"/e2e/*-e2e/checkpoints/epoch_020.pt >/dev/null 2>&1; then
+        if [ "$MID" = 1 ] && [ -n "$fd" ] && [ ! -e "$ST/run_mid$i" ] && ls "$fd"/e2e/*-e2e/checkpoints/epoch_020.pt >/dev/null 2>&1; then
             launch "mid$i" "$(cat "$r/gpu")" ".venv/bin/python -m rri_baselines.mmjepa_official.run select $i --upto 20 --device cuda:0 && .venv/bin/python -m rri_baselines.mmjepa_official.run test $i --upto 20 --device cuda:0"
         fi
         [ -f "$ST/done_$i" ] || [ -f "$ST/failed_$i" ] || remaining=$((remaining + 1))
