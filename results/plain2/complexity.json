@@ -1,0 +1,12 @@
+{
+ "tcn": {
+  "n_params": 66676,
+  "flops_per_window": 6634310100,
+  "in_points": 50
+ },
+ "wavenet": {
+  "n_params": 77089,
+  "flops_per_window": 6124880114,
+  "in_points": 50
+ }
+}
