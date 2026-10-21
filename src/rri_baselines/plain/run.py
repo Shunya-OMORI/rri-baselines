@@ -11,6 +11,7 @@
 """
 import json
 import math
+import os
 import sys
 import time
 from pathlib import Path
@@ -23,7 +24,11 @@ from rri_baselines.protocol import FS, WINDOW_LEN, eval_windows, load_trial, los
 
 REPO = Path(__file__).resolve().parents[3]
 DEV = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-EPOCHS, BATCH, LR, WD, TRAIN_STEP = 20, 32, 5e-4, 1e-4, int(0.4 * FS)
+TRAIN_STEP_SEC = float(os.environ.get("RRI_TRAIN_STEP_SEC", "0.4"))   # 学習窓の間隔. 2026-10-21 に提案手法を 0.2 s で学習し直すため切り替えを追加
+RUN_PREFIX = os.environ.get("RRI_RUN_PREFIX", "plain2")                # 保存先 runs/<RUN_PREFIX>_<網>. 既定は改訂 2 版
+if TRAIN_STEP_SEC != 0.4 and RUN_PREFIX == "plain2":
+    raise RuntimeError("RRI_TRAIN_STEP_SEC を変えるときは RRI_RUN_PREFIX も変える(改訂 2 版の成果物を上書きしない)")
+EPOCHS, BATCH, LR, WD, TRAIN_STEP = 20, 32, 5e-4, 1e-4, int(round(TRAIN_STEP_SEC * FS))
 TRAIN_POINTS, CLIP = 16, 1.0
 
 
@@ -63,7 +68,7 @@ def predict_trial(model: torch.nn.Module, x: torch.Tensor, batch: int = 64) -> n
 
 def train_fold(name: str, index: int) -> None:
     fold = loso_folds()[index]
-    run = REPO / "runs" / f"plain2_{name}" / f"fold{index:02d}_test{fold.test[0]}"   # 改訂 2 版の置き場(初版は plain_<網>)
+    run = REPO / "runs" / f"{RUN_PREFIX}_{name}" / f"fold{index:02d}_test{fold.test[0]}"   # 改訂 2 版の置き場(初版は plain_<網>)
     if (run / "predictions.npz").exists():
         print(f"[skip] {run.name}", flush=True)
         return
@@ -128,7 +133,7 @@ def evaluate() -> None:
     for name in MODELS:
         preds = {}
         for fold in loso_folds():
-            f = REPO / "runs" / f"plain2_{name}" / f"fold{fold.index:02d}_test{fold.test[0]}/predictions.npz"
+            f = REPO / "runs" / f"{RUN_PREFIX}_{name}" / f"fold{fold.index:02d}_test{fold.test[0]}/predictions.npz"
             if not f.exists():
                 break
             z = np.load(f)
@@ -136,8 +141,8 @@ def evaluate() -> None:
         else:
             out[name] = score(preds)
             print(f"{name}: 参加者平均 {out[name]['mae_ms']:.3f} ms")
-    (REPO / "results/plain2").mkdir(parents=True, exist_ok=True)
-    (REPO / "results/plain2/evaluation.json").write_text(json.dumps(out, indent=1))
+    (REPO / "results" / RUN_PREFIX).mkdir(parents=True, exist_ok=True)
+    (REPO / "results" / RUN_PREFIX / "evaluation.json").write_text(json.dumps(out, indent=1))
 
 
 if __name__ == "__main__":
